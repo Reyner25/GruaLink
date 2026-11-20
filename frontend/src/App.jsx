@@ -3,8 +3,8 @@
  *
  *  /login            común a todos
  *  /app/*            app móvil del OPERADOR (Etapa 5)
- *  /panel, /ordenes… panel de ADMINISTRADOR y FINANCIERO
- *                    (pantallas anteriores; se rehacen en la Etapa 4)
+ *  /admin/*          panel de ADMINISTRADOR y FINANCIERO (Etapa 4)
+ *  /panel, /ordenes… direcciones anteriores: redirigen a /admin
  *
  * Cada rol solo entra a lo suyo (RutaProtegida). El backend vuelve a validar
  * los permisos en cada petición.
@@ -14,11 +14,13 @@ import { useAuth } from "./context/AuthContext";
 import { inicioPorRol } from "./utils/roles";
 import RutaProtegida from "./routes/RutaProtegida";
 import LoginPage from "./pages/LoginPage";
-import ListadoOrdenesPage from "./pages/ListadoOrdenesPage";
-import DetalleOrdenPage from "./pages/DetalleOrdenPage";
-import PanelPage from "./pages/PanelPage";
-import MonitoreoPage from "./pages/MonitoreoPage";
 import OperadorLayout from "./layouts/OperadorLayout";
+import AdminLayout from "./layouts/AdminLayout";
+import Dashboard from "./pages/admin/Dashboard";
+import Servicios from "./pages/admin/Servicios";
+import ServicioDetalle from "./pages/admin/ServicioDetalle";
+import PromedioGruas from "./pages/admin/PromedioGruas";
+import Bitacora from "./pages/admin/Bitacora";
 import InicioOperador from "./pages/operador/InicioOperador";
 import IniciarTurno from "./pages/operador/IniciarTurno";
 import FinalizarTurno from "./pages/operador/FinalizarTurno";
@@ -63,11 +65,26 @@ export default function App() {
         <Route path="perfil" element={<Perfil />} />
       </Route>
 
-      {/* ---------- Administración (provisional hasta la Etapa 4) ---------- */}
-      <Route path="/panel" element={<RutaProtegida roles={ADMIN}><PanelPage /></RutaProtegida>} />
-      <Route path="/ordenes" element={<RutaProtegida roles={ADMIN}><ListadoOrdenesPage /></RutaProtegida>} />
-      <Route path="/ordenes/:id" element={<RutaProtegida roles={ADMIN}><DetalleOrdenPage /></RutaProtegida>} />
-      <Route path="/monitoreo" element={<RutaProtegida roles={["administrador"]}><MonitoreoPage /></RutaProtegida>} />
+      {/* ---------- Panel administrativo ---------- */}
+      <Route
+        path="/admin"
+        element={
+          <RutaProtegida roles={ADMIN}>
+            <AdminLayout />
+          </RutaProtegida>
+        }
+      >
+        <Route index element={<Dashboard />} />
+        <Route path="servicios" element={<Servicios />} />
+        <Route path="servicios/:id" element={<ServicioDetalle />} />
+        <Route path="reportes/promedio-gruas" element={<PromedioGruas />} />
+        <Route path="bitacora" element={<RutaProtegida roles={["administrador"]}><Bitacora /></RutaProtegida>} />
+      </Route>
+
+      {/* Direcciones del panel anterior */}
+      <Route path="/panel" element={<Navigate to="/admin" replace />} />
+      <Route path="/monitoreo" element={<Navigate to="/admin/servicios" replace />} />
+      <Route path="/ordenes/*" element={<Navigate to="/admin/servicios" replace />} />
 
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

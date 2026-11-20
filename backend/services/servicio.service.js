@@ -36,8 +36,10 @@ const TRANSICIONES = {
   asignado: ["en_desplazamiento", "anulado"],
   en_desplazamiento: ["en_servicio", "anulado"],
   en_servicio: ["finalizado", "anulado"],
-  finalizado: ["en_revision"],
-  en_revision: ["aprobado", "finalizado"],
+  // Anular después de finalizar: caso real del Excel ("ANULADA, SE CAMBIA POR OS …"),
+  // por ejemplo un servicio duplicado detectado en la revisión. Exige motivo.
+  finalizado: ["en_revision", "anulado"],
+  en_revision: ["aprobado", "finalizado", "anulado"],
   aprobado: [],
   anulado: [],
 };

@@ -82,6 +82,12 @@ export const UNIDADES_COBRO = {
   cantidad: "por unidad",
 };
 
+// Pesos colombianos: 485400 → "$ 485.400"
+export function formatoMoneda(n) {
+  if (n === null || n === undefined || n === "") return "—";
+  return Number(n).toLocaleString("es-CO", { style: "currency", currency: "COP", maximumFractionDigits: 0 });
+}
+
 // Número con coma decimal colombiana: 1.5 → "1,5"; 12 → "12"
 export function formatoNumero(n) {
   if (n === null || n === undefined || n === "") return "—";
