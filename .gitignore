@@ -1,0 +1,19 @@
+# Raíz del proyecto GruaLink
+node_modules/
+dist/
+
+# Variables de entorno: contienen contraseñas. NUNCA subirlas.
+.env
+.env.*
+!.env.example
+
+# Respaldos de la base de datos: contienen datos reales
+respaldos/
+
+# Configuración local de Claude Code (permisos de esta máquina)
+.claude/settings.local.json
+
+# Logs y archivos del sistema
+*.log
+Thumbs.db
+.DS_Store

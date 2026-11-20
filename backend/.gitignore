@@ -1,0 +1,10 @@
+# Dependencias (se reinstalan con npm install)
+node_modules/
+
+# Variables de entorno: contienen contraseñas. NUNCA subirlas al repositorio.
+.env
+.env.*
+!.env.example
+
+# Logs
+*.log

@@ -1,0 +1,480 @@
+/**
+ * Pruebas de la API del operador: login, turnos y servicios.
+ *
+ * Levantan la API de verdad (en un puerto libre) contra la base de PRUEBAS
+ * y hacen peticiones HTTP como lo haría el celular.
+ *
+ * Requisito: "npm run test:preparar" (una vez).
+ * Ojo: dependen de las tarifas 2026 del seed (vigentes hasta 31/12/2026).
+ */
+require("./entorno");
+const { test, before, after } = require("node:test");
+const assert = require("node:assert");
+const { pool } = require("../config/db");
+const { crearApp } = require("../app");
+
+const PASSWORD = "Grualink2026*"; // PASSWORD_PRUEBA de seeds/seed.js
+let servidor;
+let base;
+const tokens = {};
+const ids = {};
+
+// ---------- Utilidades ----------
+
+async function api(metodo, ruta, { token, body } = {}) {
+  const respuesta = await fetch(`${base}${ruta}`, {
+    method: metodo,
+    headers: {
+      "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  const texto = await respuesta.text();
+  return { status: respuesta.status, datos: texto ? JSON.parse(texto) : null };
+}
+
+async function login(email) {
+  const r = await api("POST", "/api/auth/login", { body: { email, password: PASSWORD } });
+  assert.strictEqual(r.status, 200, JSON.stringify(r.datos));
+  return r.datos.token;
+}
+
+async function idDe(sql, valor) {
+  const { rows } = await pool.query(sql, [valor]);
+  assert.ok(rows[0], `No encontrado: ${valor}`);
+  return rows[0].id;
+}
+
+const haceMinutos = (min) => new Date(Date.now() - min * 60000).toISOString();
+
+function datosServicio(extra = {}) {
+  return {
+    cliente_id: ids.bogotaMovil,
+    tipo_vehiculo_id: ids.articulado,
+    tipo_servicio_id: ids.remolque,
+    placa_vehiculo: "wcs 473",
+    fecha_servicio: ids.hoy,
+    hora_solicitud: haceMinutos(90),
+    inicio_servicio: haceMinutos(60),
+    origen: "Portal Tunal",
+    destino: "Patio Prosperidad",
+    ...extra,
+  };
+}
+
+const datosFinalizar = (extra = {}) => ({
+  fin_servicio: haceMinutos(5),
+  entregado_sin_novedad: true,
+  recibe_nombre: "Jefe de patio",
+  ...extra,
+});
+
+// ---------- Preparación ----------
+
+before(async () => {
+  // Base de pruebas limpia en cada corrida
+  await pool.query(`TRUNCATE servicio_conceptos, servicios, turnos_operador, bitacora,
+                    sesiones_activas RESTART IDENTITY CASCADE`);
+  await pool.query("ALTER SEQUENCE servicios_numero_orden_seq RESTART WITH 1");
+  await pool.query("UPDATE gruas SET estado = 'activa'");
+
+  servidor = crearApp().listen(0);
+  base = `http://127.0.0.1:${servidor.address().port}`;
+
+  tokens.op1 = await login("operador1@grualink.test");
+  tokens.op2 = await login("operador2@grualink.test");
+  tokens.admin = await login("admin@grualink.test");
+  tokens.fin = await login("financiero@grualink.test");
+
+  ids.op1 = await idDe("SELECT id FROM usuarios WHERE email = $1", "operador1@grualink.test");
+  ids.grua1 = await idDe("SELECT id FROM gruas WHERE numero_interno = $1", "G1");
+  ids.grua2 = await idDe("SELECT id FROM gruas WHERE numero_interno = $1", "G2");
+  ids.bogotaMovil = await idDe("SELECT id FROM clientes WHERE nombre_comercial = $1", "BOGOTA MOVIL");
+  ids.capitalbus = await idDe("SELECT id FROM clientes WHERE nombre_comercial = $1", "CAPITALBUS");
+  ids.laRolita = await idDe("SELECT id FROM clientes WHERE nombre_comercial = $1", "La Rolita");
+  ids.articulado = await idDe("SELECT id FROM tipos_vehiculo WHERE nombre = $1", "Articulado");
+  ids.buseton = await idDe("SELECT id FROM tipos_vehiculo WHERE nombre = $1", "Busetón");
+  ids.remolque = await idDe("SELECT id FROM tipos_servicio WHERE nombre = $1", "Remolque");
+  ids.rescate = await idDe("SELECT id FROM tipos_servicio WHERE nombre = $1", "Rescate");
+  ids.cardan = await idDe("SELECT id FROM conceptos_tarifa WHERE nombre = $1", "Desmontar cardán");
+  ids.standby = await idDe("SELECT id FROM conceptos_tarifa WHERE nombre = $1", "Hora standby / disponibilidad");
+  ids.camara = await idDe("SELECT id FROM conceptos_tarifa WHERE nombre = $1", "Quitar cámara de freno");
+  ids.otro = await idDe("SELECT id FROM tipos_vehiculo WHERE nombre = $1", "Otro");
+  ids.hoy = (await pool.query("SELECT current_date::text AS hoy")).rows[0].hoy;
+});
+
+after(async () => {
+  servidor?.close();
+  await pool.end();
+});
+
+// ---------- Autenticación ----------
+
+test("login: contraseña incorrecta → 401 sin revelar el motivo", async () => {
+  const r = await api("POST", "/api/auth/login", {
+    body: { email: "operador1@grualink.test", password: "mala" },
+  });
+  assert.strictEqual(r.status, 401);
+  assert.strictEqual(r.datos.codigo, "CREDENCIALES");
+});
+
+test("login: sin contraseña → 422 (antes era error 500)", async () => {
+  const r = await api("POST", "/api/auth/login", { body: { email: "operador1@grualink.test" } });
+  assert.strictEqual(r.status, 422);
+});
+
+test("/auth/yo devuelve rol y permisos", async () => {
+  const r = await api("GET", "/api/auth/yo", { token: tokens.op1 });
+  assert.strictEqual(r.status, 200);
+  assert.strictEqual(r.datos.usuario.rol, "operador");
+  assert.ok(r.datos.usuario.permisos.includes("turnos:propios"));
+});
+
+test("sin token → 401", async () => {
+  const r = await api("GET", "/api/turnos/activo");
+  assert.strictEqual(r.status, 401);
+});
+
+// ---------- Turnos ----------
+
+test("no se puede registrar un servicio sin turno activo", async () => {
+  const r = await api("POST", "/api/servicios", { token: tokens.op1, body: datosServicio() });
+  assert.strictEqual(r.status, 409);
+  assert.strictEqual(r.datos.codigo, "SIN_TURNO_ACTIVO");
+});
+
+test("iniciar turno: la hora la pone el servidor", async () => {
+  const r = await api("POST", "/api/turnos/iniciar", {
+    token: tokens.op1,
+    body: { grua_id: ids.grua1, observaciones: "Grúa con tanque lleno", inicio: "2020-01-01T00:00:00Z" },
+  });
+  assert.strictEqual(r.status, 201, JSON.stringify(r.datos));
+  assert.strictEqual(r.datos.turno.estado, "activo");
+  // Se ignoró el "inicio" enviado: la hora es de ahora
+  assert.ok(Math.abs(new Date(r.datos.turno.inicio) - Date.now()) < 60000);
+});
+
+test("un operador no puede tener dos turnos activos", async () => {
+  const r = await api("POST", "/api/turnos/iniciar", { token: tokens.op1, body: { grua_id: ids.grua2 } });
+  assert.strictEqual(r.status, 409);
+  assert.strictEqual(r.datos.codigo, "TURNO_YA_ACTIVO");
+});
+
+test("una grúa no puede estar en dos turnos activos", async () => {
+  const r = await api("POST", "/api/turnos/iniciar", { token: tokens.op2, body: { grua_id: ids.grua1 } });
+  assert.strictEqual(r.status, 409);
+  assert.strictEqual(r.datos.codigo, "GRUA_EN_USO");
+});
+
+test("gruas-disponibles marca la grúa en uso", async () => {
+  const r = await api("GET", "/api/turnos/gruas-disponibles", { token: tokens.op2 });
+  const g1 = r.datos.gruas.find((g) => g.id === ids.grua1);
+  assert.strictEqual(g1.en_uso, true);
+});
+
+// ---------- Servicios ----------
+
+test("crear servicio: el servidor ignora operador, grúa, número de orden y valores enviados", async () => {
+  const r = await api("POST", "/api/servicios", {
+    token: tokens.op1,
+    body: datosServicio({
+      operador_id: 9999,
+      grua_id: ids.grua2,
+      numero_orden: "TRAMPA",
+      valor_calculado: 1,
+      valor_conceptos: 5000000,
+      estado: "aprobado",
+    }),
+  });
+  assert.strictEqual(r.status, 201, JSON.stringify(r.datos));
+  const s = r.datos.servicio;
+  assert.strictEqual(s.numero_orden, "1"); // primera orden digital
+  assert.strictEqual(s.operador_id, ids.op1);
+  assert.strictEqual(s.grua_id, ids.grua1); // la del turno, no la enviada
+  assert.strictEqual(s.estado, "en_servicio");
+  assert.strictEqual(s.placa_vehiculo, "WCS473"); // normalizada
+  assert.strictEqual(s.valor_calculado, undefined); // el operador no ve valores
+  ids.servicio1 = s.id;
+
+  const enBd = await pool.query("SELECT valor_conceptos FROM servicios WHERE id = $1", [s.id]);
+  assert.strictEqual(enBd.rows[0].valor_conceptos, 0); // no se coló el valor enviado
+});
+
+test("no se puede registrar un servicio con fecha anterior al turno", async () => {
+  const r = await api("POST", "/api/servicios", {
+    token: tokens.op1,
+    body: datosServicio({ fecha_servicio: "2026-01-15" }),
+  });
+  assert.strictEqual(r.status, 422);
+  assert.strictEqual(r.datos.codigo, "FECHA_FUERA_DEL_TURNO");
+});
+
+test("la hora de inicio no puede ser anterior a la de solicitud (al crear y al finalizar)", async () => {
+  const crear = await api("POST", "/api/servicios", {
+    token: tokens.op1,
+    body: datosServicio({ hora_solicitud: haceMinutos(30), inicio_servicio: haceMinutos(60) }),
+  });
+  assert.strictEqual(crear.status, 422);
+  assert.strictEqual(crear.datos.codigo, "INICIO_ANTES_DE_SOLICITUD");
+
+  // Creado sin hora de inicio; al finalizar se envía una anterior a la solicitud
+  const s = await api("POST", "/api/servicios", {
+    token: tokens.op1,
+    body: datosServicio({ hora_solicitud: haceMinutos(30), inicio_servicio: null }),
+  });
+  const fin = await api("POST", `/api/servicios/${s.datos.servicio.id}/finalizar`, {
+    token: tokens.op1,
+    body: datosFinalizar({ inicio_servicio: haceMinutos(90) }),
+  });
+  assert.strictEqual(fin.status, 422);
+  assert.strictEqual(fin.datos.codigo, "INICIO_ANTES_DE_SOLICITUD");
+
+  // Con una hora válida sí se finaliza (para no dejarlo abierto)
+  const ok = await api("POST", `/api/servicios/${s.datos.servicio.id}/finalizar`, {
+    token: tokens.op1,
+    body: datosFinalizar({ inicio_servicio: haceMinutos(20) }),
+  });
+  assert.strictEqual(ok.status, 200, JSON.stringify(ok.datos));
+});
+
+test("datos inválidos → 422 con la lista de campos", async () => {
+  const r = await api("POST", "/api/servicios", {
+    token: tokens.op1,
+    body: datosServicio({ placa_vehiculo: "!!", cliente_id: "abc" }),
+  });
+  assert.strictEqual(r.status, 422);
+  const campos = r.datos.campos.map((c) => c.campo);
+  assert.ok(campos.includes("placa_vehiculo") && campos.includes("cliente_id"));
+});
+
+test("finalizar: calcula tarifa general + concepto en el backend", async () => {
+  const r = await api("POST", `/api/servicios/${ids.servicio1}/finalizar`, {
+    token: tokens.op1,
+    // km_servicio se envía a propósito: el operador ya no puede registrar km
+    body: datosFinalizar({ km_servicio: 50, conceptos: [{ concepto_id: ids.cardan, cantidad: 1 }] }),
+  });
+  assert.strictEqual(r.status, 200, JSON.stringify(r.datos));
+  assert.strictEqual(r.datos.servicio.estado, "finalizado");
+  assert.strictEqual(r.datos.servicio.valor_calculado, undefined); // oculto al operador
+  assert.strictEqual(r.datos.conceptos[0].total, undefined);
+
+  // El administrador sí ve los valores: Articulado general 393.000 + cardán 92.400
+  const admin = await api("GET", `/api/servicios/${ids.servicio1}`, { token: tokens.admin });
+  assert.strictEqual(admin.datos.servicio.valor_tarifa_basica, 393000);
+  assert.strictEqual(admin.datos.servicio.valor_conceptos, 92400);
+  assert.strictEqual(admin.datos.servicio.valor_calculado, 485400);
+  assert.strictEqual(admin.datos.servicio.km_servicio, 0); // se ignoró el km enviado
+});
+
+test("el operador no recibe ni puede enviar stand-by / recargo nocturno", async () => {
+  const cat = await api("GET", "/api/catalogos", { token: tokens.op1 });
+  const nombres = cat.datos.conceptos.map((c) => c.nombre);
+  assert.ok(!nombres.includes("Hora standby / disponibilidad"));
+  assert.ok(!nombres.includes("Recargo nocturno"));
+  assert.ok(nombres.includes("Desmontar cardán"));
+
+  const catAdmin = await api("GET", "/api/catalogos", { token: tokens.admin });
+  assert.ok(catAdmin.datos.conceptos.some((c) => c.nombre === "Hora standby / disponibilidad"));
+
+  const s = await api("POST", "/api/servicios", { token: tokens.op1, body: datosServicio() });
+  const r = await api("POST", `/api/servicios/${s.datos.servicio.id}/finalizar`, {
+    token: tokens.op1,
+    body: datosFinalizar({ conceptos: [{ concepto_id: ids.standby, cantidad: 1 }] }),
+  });
+  assert.strictEqual(r.status, 403);
+  assert.strictEqual(r.datos.codigo, "CONCEPTO_SOLO_ADMIN");
+  await api("POST", `/api/servicios/${s.datos.servicio.id}/finalizar`, { token: tokens.op1, body: datosFinalizar() });
+});
+
+test("vehículo 'Otro': exige descripción y queda a convenir", async () => {
+  const sin = await api("POST", "/api/servicios", {
+    token: tokens.op1,
+    body: datosServicio({ tipo_vehiculo_id: ids.otro }),
+  });
+  assert.strictEqual(sin.status, 422);
+  assert.strictEqual(sin.datos.codigo, "FALTA_TIPO_VEHICULO_OTRO");
+
+  const con = await api("POST", "/api/servicios", {
+    token: tokens.op1,
+    body: datosServicio({ tipo_vehiculo_id: ids.otro, tipo_vehiculo_otro: "  Volqueta " }),
+  });
+  assert.strictEqual(con.status, 201, JSON.stringify(con.datos));
+  assert.strictEqual(con.datos.servicio.tipo_vehiculo_otro, "Volqueta");
+  assert.strictEqual(con.datos.servicio.tipo_vehiculo, "Volqueta"); // se muestra lo escrito
+
+  const fin = await api("POST", `/api/servicios/${con.datos.servicio.id}/finalizar`, {
+    token: tokens.op1,
+    body: datosFinalizar(),
+  });
+  assert.strictEqual(fin.status, 200, JSON.stringify(fin.datos));
+  assert.strictEqual(fin.datos.requiere_valor_manual, true);
+
+  // Con un tipo normal, la descripción se descarta
+  const normal = await api("POST", "/api/servicios", {
+    token: tokens.op1,
+    body: datosServicio({ tipo_vehiculo_otro: "Volqueta" }),
+  });
+  assert.strictEqual(normal.datos.servicio.tipo_vehiculo_otro, null);
+  await api("POST", `/api/servicios/${normal.datos.servicio.id}/finalizar`, { token: tokens.op1, body: datosFinalizar() });
+});
+
+test("un servicio finalizado no se puede finalizar otra vez", async () => {
+  const r = await api("POST", `/api/servicios/${ids.servicio1}/finalizar`, {
+    token: tokens.op1,
+    body: datosFinalizar(),
+  });
+  assert.strictEqual(r.status, 409);
+  assert.strictEqual(r.datos.codigo, "SERVICIO_YA_CERRADO");
+});
+
+test("dos finalizaciones simultáneas: solo una pasa", async () => {
+  const creado = await api("POST", "/api/servicios", { token: tokens.op1, body: datosServicio() });
+  const ruta = `/api/servicios/${creado.datos.servicio.id}/finalizar`;
+  const [a, b] = await Promise.all([
+    api("POST", ruta, { token: tokens.op1, body: datosFinalizar() }),
+    api("POST", ruta, { token: tokens.op1, body: datosFinalizar() }),
+  ]);
+  assert.deepStrictEqual([a.status, b.status].sort(), [200, 409]);
+  const { rows } = await pool.query(
+    "SELECT count(*)::int AS n FROM bitacora WHERE entidad = 'servicios' AND registro_id = $1 AND operacion = 'finalizar'",
+    [creado.datos.servicio.id],
+  );
+  assert.strictEqual(rows[0].n, 1);
+});
+
+test("La Rolita: al finalizar usa 0 km; el administrador carga 17,5 km y se recalcula (rango 15–19,99)", async () => {
+  const creado = await api("POST", "/api/servicios", {
+    token: tokens.op1,
+    body: datosServicio({ cliente_id: ids.laRolita, tipo_vehiculo_id: ids.buseton }),
+  });
+  const id = creado.datos.servicio.id;
+  const r = await api("POST", `/api/servicios/${id}/finalizar`, { token: tokens.op1, body: datosFinalizar() });
+  assert.strictEqual(r.status, 200, JSON.stringify(r.datos));
+  let admin = await api("GET", `/api/servicios/${id}`, { token: tokens.admin });
+  assert.strictEqual(admin.datos.servicio.valor_tarifa_basica, 480000); // rango "menos de 15 km"
+
+  const corr = await api("POST", `/api/servicios/${id}/corregir`, {
+    token: tokens.admin,
+    body: { km_vacio: 3.2, km_servicio: 17.5, motivo: "Km del reporte GPS" },
+  });
+  assert.strictEqual(corr.status, 200, JSON.stringify(corr.datos));
+  admin = await api("GET", `/api/servicios/${id}`, { token: tokens.admin });
+  assert.strictEqual(admin.datos.servicio.valor_tarifa_basica, 548000);
+});
+
+test("CAPITALBUS: precio propio de conceptos; el administrador agrega 1,5 h de stand-by", async () => {
+  const creado = await api("POST", "/api/servicios", {
+    token: tokens.op1,
+    body: datosServicio({ cliente_id: ids.capitalbus }),
+  });
+  const id = creado.datos.servicio.id;
+  await api("POST", `/api/servicios/${id}/finalizar`, {
+    token: tokens.op1,
+    body: datosFinalizar({ conceptos: [{ concepto_id: ids.camara, cantidad: 2 }] }),
+  });
+  let admin = await api("GET", `/api/servicios/${id}`, { token: tokens.admin });
+  // Cámara de freno CAPITALBUS 24.800 × 2 = 49.600
+  assert.strictEqual(admin.datos.servicio.valor_conceptos, 49600);
+
+  await api("POST", `/api/servicios/${id}/corregir`, {
+    token: tokens.admin,
+    body: {
+      conceptos: [
+        { concepto_id: ids.camara, cantidad: 2 },
+        { concepto_id: ids.standby, cantidad: 1.5 },
+      ],
+      motivo: "Stand-by reportado por el cliente",
+    },
+  });
+  admin = await api("GET", `/api/servicios/${id}`, { token: tokens.admin });
+  // + stand-by CAPITALBUS 103.100 × 1,5 h = 154.650 → 204.250
+  assert.strictEqual(admin.datos.servicio.valor_conceptos, 204250);
+});
+
+test("rescate (a convenir): se marca por el tipo de servicio y queda para el administrador", async () => {
+  const creado = await api("POST", "/api/servicios", {
+    token: tokens.op1,
+    body: datosServicio({ tipo_servicio_id: ids.rescate }),
+  });
+  assert.strictEqual(creado.datos.servicio.es_rescate, true); // sin que el operador lo marque
+  const r = await api("POST", `/api/servicios/${creado.datos.servicio.id}/finalizar`, {
+    token: tokens.op1,
+    body: datosFinalizar(),
+  });
+  assert.strictEqual(r.status, 200, JSON.stringify(r.datos));
+  assert.strictEqual(r.datos.requiere_valor_manual, true);
+});
+
+test("un operador no ve ni finaliza servicios de otro", async () => {
+  const ver = await api("GET", `/api/servicios/${ids.servicio1}`, { token: tokens.op2 });
+  assert.strictEqual(ver.status, 403);
+  const lista = await api("GET", "/api/servicios", { token: tokens.op2 });
+  assert.strictEqual(lista.datos.servicios.length, 0);
+});
+
+test("el operador no puede cambiar estados (aprobar)", async () => {
+  const r = await api("PATCH", `/api/servicios/${ids.servicio1}/estado`, {
+    token: tokens.op1,
+    body: { estado: "en_revision" },
+  });
+  assert.strictEqual(r.status, 403);
+});
+
+test("el financiero ve valores pero no puede registrar servicios", async () => {
+  const crear = await api("POST", "/api/servicios", { token: tokens.fin, body: datosServicio() });
+  assert.strictEqual(crear.status, 403);
+  const ver = await api("GET", `/api/servicios/${ids.servicio1}`, { token: tokens.fin });
+  assert.strictEqual(ver.datos.servicio.valor_calculado, 485400);
+});
+
+// ---------- Cierre de turno ----------
+
+test("finalizar turno con servicios abiertos exige justificación", async () => {
+  await api("POST", "/api/servicios", { token: tokens.op1, body: datosServicio() }); // queda abierto
+
+  const sin = await api("POST", "/api/turnos/finalizar", { token: tokens.op1, body: {} });
+  assert.strictEqual(sin.status, 409);
+  assert.strictEqual(sin.datos.codigo, "SERVICIOS_SIN_FINALIZAR");
+
+  const con = await api("POST", "/api/turnos/finalizar", {
+    token: tokens.op1,
+    body: { justificacion: "El cliente canceló y no se pudo cerrar en el sistema" },
+  });
+  assert.strictEqual(con.status, 200, JSON.stringify(con.datos));
+  assert.strictEqual(con.datos.turno.estado, "finalizado");
+  assert.ok(con.datos.turno.fin);
+});
+
+test("historial de turnos: el operador solo ve los suyos", async () => {
+  const r = await api("GET", "/api/turnos", { token: tokens.op1 });
+  assert.strictEqual(r.status, 200);
+  assert.ok(r.datos.turnos.length >= 1);
+  assert.ok(r.datos.turnos.every((t) => t.operador_id === ids.op1));
+});
+
+test("el administrador cierra un turno olvidado con motivo", async () => {
+  const inicio = await api("POST", "/api/turnos/iniciar", { token: tokens.op2, body: { grua_id: ids.grua2 } });
+  const id = inicio.datos.turno.id;
+
+  const sinMotivo = await api("POST", `/api/turnos/${id}/cerrar`, { token: tokens.admin, body: {} });
+  assert.strictEqual(sinMotivo.status, 422);
+
+  const operador = await api("POST", `/api/turnos/${id}/cerrar`, { token: tokens.op1, body: { motivo: "intento" } });
+  assert.strictEqual(operador.status, 403);
+
+  const r = await api("POST", `/api/turnos/${id}/cerrar`, {
+    token: tokens.admin,
+    body: { motivo: "El operador olvidó cerrar el turno" },
+  });
+  assert.strictEqual(r.status, 200);
+  assert.strictEqual(r.datos.turno.estado, "cerrado_admin");
+});
+
+test("cada operación importante quedó en la bitácora", async () => {
+  const { rows } = await pool.query("SELECT DISTINCT operacion FROM bitacora ORDER BY 1");
+  const operaciones = rows.map((r) => r.operacion);
+  for (const op of ["cerrar_turno", "crear", "finalizar", "finalizar_turno", "iniciar_turno"]) {
+    assert.ok(operaciones.includes(op), `Falta "${op}" en bitácora`);
+  }
+});

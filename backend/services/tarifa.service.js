@@ -1,0 +1,146 @@
+/**
+ * Cálculo de valores de un servicio. SIEMPRE en el backend: el celular nunca
+ * envía precios, solo QUÉ se hizo (cliente, vehículo, tipo de servicio, km,
+ * conceptos y cantidades).
+ *
+ * valor_calculado = valor_tarifa_basica + valor_conceptos
+ *
+ * Reglas:
+ *  - Tarifa básica: se busca la del cliente; si no tiene, la de "Clientes
+ *    generales". Si hay más de una que aplique → error (nunca se elige al azar).
+ *  - Tipo de servicio "a convenir" (ej. rescate): no hay tarifa básica;
+ *    el administrador define el valor al revisar el servicio.
+ *  - PROVISIONAL: vehículo tipo "Otro" (volqueta, camión…): no tiene tarifa
+ *    propia, así que también queda "a convenir".
+ *  - Conceptos: precio del cliente o, si no existe, el general.
+ *    total = valor unitario × cantidad.
+ *
+ * PROVISIONAL (pregunta P8): km facturables = km de servicio (sin km en vacío).
+ * Los km los registra el ADMINISTRADOR en la revisión (corrección autorizada),
+ * no el operador. Al finalizar, el servicio se calcula con los km que tenga
+ * (0 por defecto) y se recalcula cuando el administrador los corrige.
+ * PENDIENTE (P10): conceptos con unidad "porcentaje" se rechazan hasta definir
+ *   sobre qué base se calculan.
+ */
+const TarifaModel = require("../models/tarifa.model");
+const { errorNegocio } = require("../utils/errores");
+
+// Redondea a 2 decimales (centavos) para que coincida con NUMERIC(12,2)
+const redondear = (n) => Math.round(Number(n) * 100) / 100;
+
+function kmFacturables({ kmServicio }) {
+  return redondear(kmServicio);
+}
+
+async function seleccionarTarifa({ clienteId, tipoVehiculoId, tipoServicioId, fecha, km }, opciones) {
+  const candidatas = await TarifaModel.buscarCandidatas(
+    { clienteId, tipoVehiculoId, tipoServicioId, fecha, km },
+    opciones,
+  );
+
+  // Si el cliente tiene tarifa propia, se ignoran las generales
+  const delCliente = candidatas.filter((t) => t.cliente_id !== null);
+  const aplicables = delCliente.length > 0 ? delCliente : candidatas;
+
+  if (aplicables.length === 0) {
+    throw errorNegocio(
+      422,
+      "TARIFA_NO_ENCONTRADA",
+      "No hay tarifa vigente para este cliente, tipo de vehículo, tipo de servicio y kilometraje. Avise al administrador.",
+    );
+  }
+  if (aplicables.length > 1) {
+    throw errorNegocio(409, "TARIFA_AMBIGUA", "Hay varias tarifas que aplican. Revise la configuración tarifaria.", {
+      tarifas: aplicables.map((t) => t.id),
+    });
+  }
+
+  const [tarifa] = aplicables;
+  return {
+    tarifaId: tarifa.id,
+    valor: redondear(tarifa.valor),
+    origen: tarifa.cliente_id ? "cliente" : "clientes_generales",
+  };
+}
+
+/**
+ * soloOperador=true: cuando el que envía los conceptos es el OPERADOR, se
+ * rechazan los que no le corresponde reportar (stand-by, recargo nocturno).
+ */
+async function calcularConceptos({ conceptos = [], clienteId, fecha, soloOperador = false }, opciones) {
+  if (conceptos.length === 0) return { detalle: [], total: 0 };
+
+  const ids = conceptos.map((c) => c.concepto_id);
+  if (new Set(ids).size !== ids.length) {
+    throw errorNegocio(422, "CONCEPTO_REPETIDO", "Un concepto aparece dos veces; use la cantidad");
+  }
+
+  const precios = await TarifaModel.preciosDeConceptos({ conceptoIds: ids, clienteId, fecha }, opciones);
+  const porId = new Map(precios.map((p) => [p.concepto_id, p]));
+
+  const detalle = conceptos.map(({ concepto_id: id, cantidad }) => {
+    const precio = porId.get(id);
+    if (!precio || !precio.activo) {
+      throw errorNegocio(422, "CONCEPTO_INVALIDO", `El concepto ${id} no existe o está inactivo`);
+    }
+    if (soloOperador && !precio.la_reporta_operador) {
+      throw errorNegocio(403, "CONCEPTO_SOLO_ADMIN", `"${precio.nombre}" lo aplica el administrador, no el operador`);
+    }
+    if (precio.unidad_cobro === "porcentaje") {
+      throw errorNegocio(422, "CONCEPTO_SIN_REGLA", `"${precio.nombre}" se cobra por porcentaje y esa regla aún no está definida`);
+    }
+    if (precio.valor === null) {
+      throw errorNegocio(422, "CONCEPTO_SIN_PRECIO", `"${precio.nombre}" no tiene precio vigente para esta fecha`);
+    }
+    return {
+      concepto_id: id,
+      nombre: precio.nombre,
+      unidad_cobro: precio.unidad_cobro,
+      cantidad: redondear(cantidad),
+      valor_unitario: redondear(precio.valor),
+      total: redondear(precio.valor * cantidad),
+    };
+  });
+
+  return { detalle, total: redondear(detalle.reduce((suma, d) => suma + d.total, 0)) };
+}
+
+/**
+ * Calcula todos los valores de un servicio.
+ * Devuelve lo que se guarda en la tabla servicios + el detalle de conceptos.
+ */
+async function calcularValores(
+  { clienteId, tipoVehiculo, tipoServicio, fecha, kmServicio, conceptos, soloOperador = false },
+  opciones,
+) {
+  const km = kmFacturables({ kmServicio });
+  const adicionales = await calcularConceptos({ conceptos, clienteId, fecha, soloOperador }, opciones);
+
+  if (tipoServicio.valor_a_convenir || tipoVehiculo.es_otro) {
+    return {
+      km_facturables: km,
+      tarifa_id: null,
+      valor_tarifa_basica: null,
+      valor_conceptos: adicionales.total,
+      valor_calculado: null, // lo define el administrador
+      requiere_valor_manual: true,
+      conceptos: adicionales.detalle,
+    };
+  }
+
+  const tarifa = await seleccionarTarifa(
+    { clienteId, tipoVehiculoId: tipoVehiculo.id, tipoServicioId: tipoServicio.id, fecha, km },
+    opciones,
+  );
+  return {
+    km_facturables: km,
+    tarifa_id: tarifa.tarifaId,
+    valor_tarifa_basica: tarifa.valor,
+    valor_conceptos: adicionales.total,
+    valor_calculado: redondear(tarifa.valor + adicionales.total),
+    requiere_valor_manual: false,
+    conceptos: adicionales.detalle,
+  };
+}
+
+module.exports = { calcularValores, seleccionarTarifa, calcularConceptos, kmFacturables, redondear };
