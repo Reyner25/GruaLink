@@ -15,6 +15,15 @@ Flujo recorrido en el navegador, contra la base de pruebas: login → inicio de 
 | Casillas de trabajos y lista "Tipo de servicio" sin nombre accesible | `aria-label` e `id` |
 | El panel administrativo anterior no tenía "Cerrar sesión" en pantallas angostas | Botón de salida siempre visible en la barra superior |
 
+### Cambios pedidos por SOTRANDES (20/11/2026) — migración 007, probados en el navegador
+
+| Cambio | Detalle |
+|---|---|
+| Tipo de vehículo **"Otro"** | Al elegirlo aparece "¿Qué tipo de vehículo es?" (obligatorio). Se guarda en `servicios.tipo_vehiculo_otro` y los listados muestran lo escrito ("Volqueta"). Valor **a convenir** (lo define el administrador) |
+| Sin "¿Corresponde a un rescate?" | El servidor marca `es_rescate` según el tipo de servicio (`tipos_servicio.es_rescate`) |
+| Sin **Hora stand-by** ni **Recargo nocturno** en el celular | Marca `conceptos_tarifa.la_reporta_operador = false`. El servidor los rechaza si los envía el operador; el administrador los agrega con la corrección autorizada |
+| Sin **kilómetros** en "Finalizar servicio" | Los registra el administrador con la corrección autorizada (el valor se recalcula). El detalle del operador dice "Los registra el administrador" |
+
 Pendiente de revisar con el navegador visible: al elegir el **tipo de servicio** el menú no se cerró en la prueba automatizada (probablemente porque el navegador de pruebas estaba oculto y no corren las animaciones). Si te pasa en tu celular, avísame.
 
 ## 1. Cómo se organiza

@@ -56,7 +56,7 @@ export default function DetalleServicio() {
             <FilaDato icono={<EventIcon />} etiqueta="Fecha del servicio" valor={formatoFecha(s.fecha_servicio)} />
             <FilaDato icono={<PersonIcon />} etiqueta="Cliente" valor={s.cliente_nombre} />
             <FilaDato icono={<DirectionsBusIcon />} etiqueta="Vehículo" valor={`${s.placa_vehiculo} · ${s.tipo_vehiculo}${s.numero_vehiculo ? ` · N.º ${s.numero_vehiculo}` : ""}`} />
-            <FilaDato icono={<BuildIcon />} etiqueta="Tipo de servicio" valor={`${s.tipo_servicio || "—"}${s.es_rescate ? " · Rescate" : ""}`} />
+            <FilaDato icono={<BuildIcon />} etiqueta="Tipo de servicio" valor={s.tipo_servicio} />
             <FilaDato icono={<LocalShippingIcon />} etiqueta="Grúa" valor={`${s.grua_numero} · ${s.grua_placa}`} />
             <FilaDato icono={<PlaceIcon />} etiqueta="Origen" valor={s.origen} />
             <FilaDato icono={<FlagIcon />} etiqueta="Destino" valor={s.destino} />
