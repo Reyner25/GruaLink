@@ -167,7 +167,7 @@ Consulta (GET) de clientes, grúas, tarifas y dashboard: administrador **y finan
 ### 8.4 Detalle técnico a tener en cuenta
 
 - **"Usado" en precios de concepto** se detecta por coincidencia (mismo concepto, cliente, vigencia y valor unitario cobrado), porque `servicio_conceptos` guarda el valor cobrado y no el id del precio. Si en el futuro se quiere exactitud total, se agrega `servicio_conceptos.precio_id` en una migración.
-- **`porcentaje_operador`** sigue sin calcularse (P11): la columna es `NUMERIC(5,2)` (porcentaje), pero en el Excel es un valor en pesos. Hay que decidir qué se guarda antes de programarlo.
+- **Pago al operador (P11)**: resuelto el 23/11/2026 con reglas configurables (`reglas_pago_operador`) y `servicios.valor_operador` en pesos; la columna antigua `porcentaje_operador` queda sin uso. Ver ETAPA-4, sección 5.2.
 - **Dashboard de la flota** (activas/mantenimiento/inactivas/en turno) es el estado **actual**; las cifras por fecha están en "promedio de grúas".
 
 ### 8.5 Pruebas
