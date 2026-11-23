@@ -51,6 +51,7 @@ import {
   mensajeError,
 } from "../../utils/formato";
 import { EncabezadoPagina, Panel } from "../../components/admin/Comunes";
+import BotonExportar from "../../components/admin/BotonExportar";
 import { DialogoAprobar, DialogoCorregir, DialogoMotivo } from "../../components/admin/DialogosServicio";
 import { Cargando, ErrorCarga, EstadoServicio } from "../../components/operador/Comunes";
 
@@ -178,7 +179,7 @@ export default function ServicioDetalle() {
     }
   }
 
-  const acciones = !cerradoDefinitivo && (
+  const accionesRevision = !cerradoDefinitivo && (
     <>
       {s.estado === "finalizado" && puede(usuario, "servicios:cambiar_estado") && (
         <Button startIcon={<RateReviewIcon />} onClick={pasarARevision}>
@@ -205,6 +206,14 @@ export default function ServicioDetalle() {
           Anular
         </Button>
       )}
+    </>
+  );
+
+  // El PDF de la orden se puede descargar siempre (también aprobados y anulados)
+  const acciones = (
+    <>
+      <BotonExportar reporte={`ordenes/${s.id}`} tipo="pdf" texto="Orden en PDF" variant="outlined" />
+      {accionesRevision}
     </>
   );
 

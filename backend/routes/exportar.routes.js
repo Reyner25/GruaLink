@@ -2,21 +2,24 @@
  * Exportación a Excel  →  /api/exportar   (administrador y financiero)
  *
  *  GET /servicios        ?desde ?hasta ?cliente_id ?grua_id ?operador_id ?estado
- *                        Hojas: "Servicios" (una fila por servicio, con
- *                        totales) y "Trabajos adicionales" (detalle).
+ *                        Una hoja "Servicios": una fila por servicio, con los
+ *                        trabajos adicionales en columnas y fila de totales.
+ *  GET /ordenes          mismos filtros → PDF con una orden de servicio por página
+ *  GET /ordenes/:id      PDF de una sola orden
  *  GET /promedio-gruas   ?desde ?hasta   (máx. 1 año)
  *
  * Usa los mismos filtros que el dashboard y el listado de servicios, así el
  * archivo coincide con lo que se ve en pantalla.
  */
 const { Router } = require("express");
-const { query } = require("express-validator");
+const { query, param } = require("express-validator");
 const { autenticar } = require("../middlewares/auth");
-const { requierePermiso } = require("../middlewares/permisos");
+const { requierePermiso, tienePermiso } = require("../middlewares/permisos");
 const { resultadoValidacion } = require("../validators/comun");
 const ExportarModel = require("../models/exportar.model");
 const DashboardModel = require("../models/dashboard.model");
 const { crearExcel } = require("../services/excel.service");
+const { crearOrdenesPdf } = require("../services/pdf.service");
 const { errorNegocio } = require("../utils/errores");
 
 const ESTADOS = {
@@ -47,7 +50,32 @@ function enviarExcel(res, buffer, nombre) {
   res.send(Buffer.from(buffer));
 }
 
-const sufijoFechas = (q) => [q.desde, q.hasta].filter(Boolean).join("_a_") || "todo";
+/**
+ * Convierte el detalle de trabajos adicionales en columnas de la hoja de
+ * servicios: por cada concepto que aparece en el periodo, "<concepto> (cant.)"
+ * y "<concepto> ($)". Solo salen los conceptos usados, ordenados por nombre.
+ * Devuelve las columnas y, por servicio, los valores de esas columnas.
+ */
+function columnasDeConceptos(conceptos) {
+  const usados = new Map(); // concepto_id → { nombre, unidad }
+  const porServicio = new Map(); // servicio_id → { c<id>_cant, c<id>_valor }
+  for (const c of conceptos) {
+    usados.set(c.concepto_id, { nombre: c.concepto, unidad: UNIDADES[c.unidad_cobro] || c.unidad_cobro });
+    const fila = porServicio.get(c.servicio_id) || {};
+    fila[`c${c.concepto_id}_cant`] = c.cantidad;
+    fila[`c${c.concepto_id}_valor`] = c.total;
+    porServicio.set(c.servicio_id, fila);
+  }
+  const columnas = [...usados.entries()]
+    .sort((a, b) => a[1].nombre.localeCompare(b[1].nombre, "es"))
+    .flatMap(([id, { nombre, unidad }]) => [
+      { titulo: `${nombre} (cant. ${unidad.toLowerCase()})`, campo: `c${id}_cant`, formato: "numero", ancho: 12 },
+      { titulo: `${nombre} ($)`, campo: `c${id}_valor`, formato: "moneda", ancho: 13 },
+    ]);
+  return { columnas, porServicio };
+}
+
+const sufijoFechas =(q) => [q.desde, q.hasta].filter(Boolean).join("_a_") || "todo";
 
 const router = Router();
 router.use(autenticar, requierePermiso("reportes:ver"));
@@ -67,13 +95,18 @@ router.get("/servicios", ...filtrosValidos, async (req, res, next) => {
       throw errorNegocio(422, "DEMASIADAS_FILAS", `Son más de ${ExportarModel.LIMITE_FILAS} servicios: reduzca el rango de fechas.`);
     }
     const conceptos = await ExportarModel.conceptosDe(filas.map((f) => f.id));
+    const { columnas: columnasConceptos, porServicio } = columnasDeConceptos(conceptos);
 
     const buffer = await crearExcel({
       titulo: "Servicios de grúa",
       hojas: [
         {
           nombre: "Servicios",
-          totales: ["km_vacio", "km_servicio", "km_total", "valor_tarifa_basica", "valor_conceptos", "valor_calculado", "valor_aprobado"],
+          totales: [
+            "km_vacio", "km_servicio", "km_total", "valor_tarifa_basica",
+            ...columnasConceptos.map((c) => c.campo),
+            "valor_conceptos", "valor_calculado", "valor_aprobado",
+          ],
           columnas: [
             { titulo: "Orden", campo: "numero_orden", ancho: 9 },
             { titulo: "Fecha", campo: "fecha_servicio", formato: "fecha", ancho: 11 },
@@ -100,7 +133,9 @@ router.get("/servicios", ...filtrosValidos, async (req, res, next) => {
             { titulo: "Km total", campo: "km_total", formato: "numero", ancho: 9 },
             { titulo: "Km facturables", campo: "km_facturables", formato: "numero", ancho: 10 },
             { titulo: "Tarifa básica", campo: "valor_tarifa_basica", formato: "moneda", ancho: 13 },
-            { titulo: "Conceptos", campo: "valor_conceptos", formato: "moneda", ancho: 12 },
+            // Trabajos adicionales: dos columnas (cantidad y valor) por cada concepto usado
+            ...columnasConceptos,
+            { titulo: "Total adicionales", campo: "valor_conceptos", formato: "moneda", ancho: 13 },
             { titulo: "Valor calculado", campo: "valor_calculado", formato: "moneda", ancho: 13 },
             { titulo: "Valor aprobado", campo: "valor_aprobado", formato: "moneda", ancho: 13 },
             { titulo: "Aprobado por", campo: "aprobado_por", ancho: 18 },
@@ -111,31 +146,73 @@ router.get("/servicios", ...filtrosValidos, async (req, res, next) => {
             { titulo: "Observaciones", campo: "observaciones", ancho: 35 },
             { titulo: "Observaciones entrega", campo: "observaciones_entrega", ancho: 35 },
           ],
-          filas: filas.map((f) => ({
-            ...f,
-            estado_texto: ESTADOS[f.estado] || f.estado,
-            // Los anulados no suman dinero (igual que el dashboard)
-            ...(f.estado === "anulado" ? { valor_calculado: null, valor_aprobado: null, valor_tarifa_basica: null, valor_conceptos: null } : {}),
-          })),
-        },
-        {
-          nombre: "Trabajos adicionales",
-          totales: ["total"],
-          columnas: [
-            { titulo: "Orden", campo: "numero_orden", ancho: 9 },
-            { titulo: "Fecha", campo: "fecha_servicio", formato: "fecha", ancho: 11 },
-            { titulo: "Cliente", campo: "cliente", ancho: 22 },
-            { titulo: "Concepto", campo: "concepto", ancho: 28 },
-            { titulo: "Unidad", campo: "unidad", ancho: 9 },
-            { titulo: "Cantidad", campo: "cantidad", formato: "numero", ancho: 9 },
-            { titulo: "Valor unitario", campo: "valor_unitario", formato: "moneda", ancho: 13 },
-            { titulo: "Total", campo: "total", formato: "moneda", ancho: 13 },
-          ],
-          filas: conceptos.map((c) => ({ ...c, unidad: UNIDADES[c.unidad_cobro] || c.unidad_cobro })),
+          filas: filas.map((f) => {
+            const anulado = f.estado === "anulado";
+            const adicionales = { ...porServicio.get(f.id) };
+            // Los anulados no suman dinero (igual que el dashboard): se dejan las cantidades
+            if (anulado) for (const campo of Object.keys(adicionales)) if (campo.endsWith("_valor")) adicionales[campo] = null;
+            return {
+              ...f,
+              ...adicionales,
+              estado_texto: ESTADOS[f.estado] || f.estado,
+              ...(anulado ? { valor_calculado: null, valor_aprobado: null, valor_tarifa_basica: null, valor_conceptos: null } : {}),
+            };
+          }),
         },
       ],
     });
     enviarExcel(res, buffer, `GruaLink_servicios_${sufijoFechas(q)}.xlsx`);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ---------- PDF de órdenes de servicio ----------
+const LIMITE_ORDENES_PDF = 500; // un PDF más grande tarda y pesa demasiado
+
+async function enviarOrdenes(req, res, filtros, nombre) {
+  const servicios = await ExportarModel.servicios(filtros, { limite: LIMITE_ORDENES_PDF });
+  if (servicios.length === 0) throw errorNegocio(404, "SIN_SERVICIOS", "No hay servicios con estos filtros");
+  if (servicios.length > LIMITE_ORDENES_PDF) {
+    throw errorNegocio(422, "DEMASIADAS_ORDENES", `Son más de ${LIMITE_ORDENES_PDF} órdenes: reduzca el rango de fechas o filtre por cliente o grúa.`);
+  }
+  const conceptos = await ExportarModel.conceptosDe(servicios.map((s) => s.id));
+  const buffer = await crearOrdenesPdf({
+    servicios,
+    conceptos,
+    // El dinero solo sale para quien tiene permiso de ver valores
+    mostrarValores: tienePermiso(req.usuario.rol, "valores:ver"),
+    generadoPor: req.usuario.nombre,
+  });
+  res.setHeader("Content-Type", "application/pdf");
+  res.setHeader("Content-Disposition", `attachment; filename="${typeof nombre === "function" ? nombre(servicios) : nombre}"`);
+  res.send(buffer);
+}
+
+router.get("/ordenes", ...filtrosValidos, async (req, res, next) => {
+  try {
+    const q = req.query;
+    await enviarOrdenes(
+      req,
+      res,
+      {
+        desde: q.desde,
+        hasta: q.hasta,
+        clienteId: q.cliente_id ? Number(q.cliente_id) : undefined,
+        gruaId: q.grua_id ? Number(q.grua_id) : undefined,
+        operadorId: q.operador_id ? Number(q.operador_id) : undefined,
+        estado: q.estado,
+      },
+      `GruaLink_ordenes_${sufijoFechas(q)}.pdf`,
+    );
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.get("/ordenes/:id", param("id").isInt({ min: 1 }).withMessage("Id inválido"), resultadoValidacion, async (req, res, next) => {
+  try {
+    await enviarOrdenes(req, res, { servicioId: Number(req.params.id) }, (s) => `Orden_${String(s[0].numero_orden).replace(/[^\w-]/g, "")}.pdf`);
   } catch (err) {
     next(err);
   }

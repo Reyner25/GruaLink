@@ -61,7 +61,13 @@ export default function Servicios() {
         descripcion="Revisión, corrección y aprobación de los servicios registrados."
         migas={[{ texto: "Servicios" }]}
         // Exporta TODOS los servicios del filtro (no solo esta página)
-        acciones={<BotonExportar reporte="servicios" filtros={filtros} />}
+        // Órdenes en PDF: una página por servicio, con los mismos filtros
+        acciones={
+          <>
+            <BotonExportar reporte="ordenes" filtros={filtros} tipo="pdf" texto="Órdenes en PDF" variant="outlined" />
+            <BotonExportar reporte="servicios" filtros={filtros} />
+          </>
+        }
       />
       <Filtros filtros={filtros} cambiar={cambiarFiltro} limpiar={limpiar} />
 
@@ -96,6 +102,7 @@ export default function Servicios() {
                   <TableCell align="right">Valor calculado</TableCell>
                   <TableCell align="right">Valor aprobado</TableCell>
                   <TableCell>Estado</TableCell>
+                  <TableCell align="center">PDF</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
@@ -122,11 +129,14 @@ export default function Servicios() {
                     <TableCell>
                       <EstadoServicio estado={s.estado} />
                     </TableCell>
+                    <TableCell align="center" padding="checkbox">
+                      <BotonExportar reporte={`ordenes/${s.id}`} tipo="pdf" texto={`Descargar orden #${s.numero_orden} en PDF`} compacto />
+                    </TableCell>
                   </TableRow>
                 ))}
                 {filas.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={9} align="center" sx={{ py: 4, color: "text.secondary" }}>
+                    <TableCell colSpan={10} align="center" sx={{ py: 4, color: "text.secondary" }}>
                       No hay servicios con estos filtros.
                     </TableCell>
                   </TableRow>

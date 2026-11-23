@@ -85,7 +85,7 @@ Botón **"Exportar a Excel"** en *Inicio*, *Servicios* y *Promedio de grúas*. E
 
 | Endpoint | Hojas | Notas |
 |---|---|---|
-| `GET /api/exportar/servicios` (mismos filtros del dashboard) | **Servicios** (una fila por servicio, 35 columnas: orden, fechas, cliente, operador, grúa, vehículo, tiempos de reacción y duración, km, valores, aprobación, entrega, observaciones) y **Trabajos adicionales** (detalle de conceptos) | Máx. 20.000 filas. Los anulados no llevan valores (igual que el dashboard) |
+| `GET /api/exportar/servicios` (mismos filtros del dashboard) | **Una sola hoja "Servicios"**: una fila por servicio (orden, fechas, cliente, operador, grúa, vehículo, tiempos de reacción y duración, km, valores, aprobación, entrega, observaciones) y los **trabajos adicionales en columnas**: por cada concepto usado en el periodo, `<concepto> (cant. …)` y `<concepto> ($)`, más "Total adicionales" | Máx. 20.000 filas. Los anulados no llevan valores (igual que el dashboard); sí sus cantidades |
 | `GET /api/exportar/promedio-gruas?desde&hasta` | **Promedio de grúas** por día | Máx. 1 año |
 
 Características del archivo:
@@ -97,6 +97,20 @@ Características del archivo:
 Código: `backend/services/excel.service.js` (genérico: `crearExcel({ titulo, hojas })` sirve para cualquier reporte nuevo), `backend/models/exportar.model.js`, `backend/routes/exportar.routes.js`, `frontend/src/components/admin/BotonExportar.jsx`.
 
 Librería nueva: **ExcelJS 4.4.0** (MIT). `npm audit` reporta 2 avisos moderados en `uuid` (dependencia interna de ExcelJS para identificadores del archivo; no recibe datos del usuario) y 2 en `nodemon` (solo desarrollo). Revisar en la Etapa 7.
+
+## 6.1 Órdenes de servicio en PDF (23/11/2026)
+
+| Dónde | Qué descarga |
+|---|---|
+| *Servicios* → botón **"Órdenes en PDF"** | **Todas** las órdenes del filtro actual, una por página (máx. 500 por archivo) — `GET /api/exportar/ordenes` (mismos filtros que el Excel) |
+| *Servicios* → ícono PDF en cada fila | La orden de ese servicio — `GET /api/exportar/ordenes/:id` |
+| *Detalle del servicio* → **"Orden en PDF"** | La orden de ese servicio (también aprobados y anulados) |
+
+Cada orden (tamaño carta): encabezado con N.º de orden, fecha y estado; datos del servicio (cliente, NIT, tipo, operador, grúa); vehículo; recorrido y tiempos (origen, destino, horas, reacción, duración, km); trabajos adicionales (máx. 8 renglones, el resto se indica); valores (tarifa básica, adicionales, calculado, **aprobado** y quién lo aprobó); entrega; observaciones; firmas del operador y de quien recibe; pie con fecha de generación y "Página X de Y". Los **anulados** llevan la marca de agua "ANULADO". Los textos largos se cortan con "…" para que cada orden quepa en una página.
+
+- El dinero solo aparece si el usuario tiene `valores:ver` (hoy: administrador y financiero).
+- Permisos: `reportes:ver`. El operador recibe 403.
+- Código: `backend/services/pdf.service.js` (diseño de la orden), rutas en `backend/routes/exportar.routes.js`. Librería **PDFKit 0.20.2** (MIT), con las fuentes estándar del PDF (no requiere instalar fuentes).
 
 ## 7. Pendiente / ideas
 

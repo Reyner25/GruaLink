@@ -417,7 +417,8 @@ test("exportar a Excel: mismos servicios del filtro, fechas reales, totales y an
   const libro = new ExcelJS.Workbook();
   await libro.xlsx.load(r.buffer);
   const hoja = libro.getWorksheet("Servicios");
-  assert.ok(libro.getWorksheet("Trabajos adicionales"));
+  // Una sola hoja: los trabajos adicionales van en columnas de la misma fila
+  assert.strictEqual(libro.worksheets.length, 1);
   const titulos = hoja.getRow(1).values;
   const col = (t) => titulos.indexOf(t);
 
@@ -439,12 +440,52 @@ test("exportar a Excel: mismos servicios del filtro, fechas reales, totales y an
   assert.strictEqual(total.getCell(1).value, "TOTAL");
   assert.match(total.getCell(col("Valor aprobado")).value.formula, /SUBTOTAL\(9,/);
 
+  // Trabajos adicionales en columnas: el servicio corregido lleva 2 cardanes (2 × 80.000)
+  const cCant = col("Desmontar cardán (cant. evento)");
+  const cValor = col("Desmontar cardán ($)");
+  assert.ok(cCant > 0 && cValor === cCant + 1, `columnas de conceptos: ${titulos.join(" | ")}`);
+  const conCardan = filas.find((f) => f.getCell(cCant).value !== null);
+  assert.strictEqual(conCardan.getCell(cCant).value, 2);
+  assert.strictEqual(conCardan.getCell(cValor).value, 160000);
+  assert.strictEqual(conCardan.getCell(col("Total adicionales")).value, 160000);
+  assert.match(total.getCell(cValor).value.formula, /SUBTOTAL\(9,/);
+
   // Promedio de grúas
   const p = await descargar(`/api/exportar/promedio-gruas?desde=${ids.ayer}&hasta=${ids.hoy}`, tk.admin);
   assert.strictEqual(p.status, 200);
   const libroP = new ExcelJS.Workbook();
   await libroP.xlsx.load(p.buffer);
   assert.strictEqual(libroP.getWorksheet("Promedio de grúas").rowCount, 3); // encabezado + 2 días
+});
+
+test("órdenes de servicio en PDF: masivo con filtros e individual", async () => {
+  const descargar = async (ruta, token) => {
+    const r = await fetch(`${base}${ruta}`, { headers: { Authorization: `Bearer ${token}` } });
+    return { status: r.status, tipo: r.headers.get("content-type"), nombre: r.headers.get("content-disposition"), buffer: Buffer.from(await r.arrayBuffer()) };
+  };
+  const paginas = (buf) => Number(buf.toString("latin1").match(/\/Type \/Pages[\s\S]*?\/Count (\d+)/)?.[1]);
+
+  // El operador no puede descargar órdenes
+  assert.strictEqual((await descargar(`/api/exportar/ordenes/${ids.servicio}`, tk.op)).status, 403);
+
+  // Masivo: los 3 servicios del cliente de prueba → 3 páginas
+  const m = await descargar(`/api/exportar/ordenes?cliente_id=${ids.cliente}`, tk.admin);
+  assert.strictEqual(m.status, 200);
+  assert.match(m.tipo, /application\/pdf/);
+  assert.match(m.nombre, /GruaLink_ordenes_.*\.pdf/);
+  assert.strictEqual(m.buffer.subarray(0, 5).toString(), "%PDF-");
+  assert.strictEqual(paginas(m.buffer), 3);
+
+  // Individual (financiero): 1 página, nombre con el número de orden
+  const u = await descargar(`/api/exportar/ordenes/${ids.servicio}`, tk.fin);
+  assert.strictEqual(u.status, 200);
+  assert.match(u.nombre, /Orden_\w+\.pdf/);
+  assert.strictEqual(paginas(u.buffer), 1);
+
+  // Sin resultados o id inválido
+  assert.strictEqual((await descargar("/api/exportar/ordenes/999999999", tk.admin)).status, 404);
+  assert.strictEqual((await descargar("/api/exportar/ordenes/abc", tk.admin)).status, 422);
+  assert.strictEqual((await descargar("/api/exportar/ordenes?desde=2001-01-01&hasta=2001-01-02", tk.admin)).status, 404);
 });
 
 test("promedio de grúas por día", async () => {

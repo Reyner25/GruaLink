@@ -91,20 +91,20 @@ export async function cambiarPasswordUsuario(id, password, motivo) {
   await api.post(`/usuarios/${id}/password`, { password, motivo: motivo || undefined });
 }
 
-// ---------- Exportar a Excel ----------
+// ---------- Exportar (Excel y PDF) ----------
 /**
- * Descarga un Excel generado por el backend y lo guarda en el equipo.
- * reporte: "servicios" | "promedio-gruas"
+ * Descarga un archivo generado por el backend y lo guarda en el equipo.
+ * reporte: "servicios" | "promedio-gruas" (Excel) | "ordenes" | "ordenes/<id>" (PDF)
  * El nombre del archivo lo pone el servidor (Content-Disposition).
  */
-export async function descargarExcel(reporte, filtros) {
+export async function descargarArchivo(reporte, filtros) {
   const respuesta = await api.get(`/exportar/${reporte}`, {
     params: limpiar(filtros),
     responseType: "blob",
     timeout: 120000, // un año de servicios puede tardar unos segundos
   });
   const cabecera = respuesta.headers["content-disposition"] || "";
-  const nombre = cabecera.match(/filename="([^"]+)"/)?.[1] || `GruaLink_${reporte}.xlsx`;
+  const nombre = cabecera.match(/filename="([^"]+)"/)?.[1] || `GruaLink_${reporte.replace("/", "_")}`;
 
   // Truco estándar para descargar: un enlace temporal al archivo en memoria
   const url = URL.createObjectURL(respuesta.data);

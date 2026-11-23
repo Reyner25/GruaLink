@@ -16,9 +16,10 @@ const hora = (col) => `to_char(${col} AT TIME ZONE 'America/Bogota', 'YYYY-MM-DD
 const ExportarModel = {
   LIMITE_FILAS,
 
-  async servicios(filtros) {
+  // "limite": se piden limite + 1 filas para saber si el filtro trae demasiados
+  async servicios(filtros, { limite = LIMITE_FILAS } = {}) {
     const { where, valores } = filtrosServicios(filtros);
-    valores.push(LIMITE_FILAS + 1);
+    valores.push(limite + 1);
     const { rows } = await pool.query(
       `SELECT s.id, s.numero_orden, s.fecha_servicio::text AS fecha_servicio, s.estado,
               COALESCE(c.nombre_comercial, c.razon_social) AS cliente, c.nit AS cliente_nit,
@@ -56,7 +57,7 @@ const ExportarModel = {
   async conceptosDe(servicioIds) {
     if (servicioIds.length === 0) return [];
     const { rows } = await pool.query(
-      `SELECT s.numero_orden, s.fecha_servicio::text AS fecha_servicio,
+      `SELECT sc.servicio_id, sc.concepto_id, s.numero_orden, s.fecha_servicio::text AS fecha_servicio,
               COALESCE(c.nombre_comercial, c.razon_social) AS cliente,
               ct.nombre AS concepto, ct.unidad_cobro, sc.cantidad, sc.valor_unitario, sc.total
        FROM servicio_conceptos sc

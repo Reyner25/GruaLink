@@ -34,7 +34,11 @@ export function EncabezadoPagina({ titulo, descripcion, migas = [], acciones }) 
           </Typography>
           {descripcion && <Typography color="text.secondary">{descripcion}</Typography>}
         </Box>
-        {acciones && <Stack direction="row" spacing={1}>{acciones}</Stack>}
+        {acciones && (
+          <Stack direction="row" spacing={1} useFlexGap sx={{ flexWrap: "wrap" }}>
+            {acciones}
+          </Stack>
+        )}
       </Stack>
     </Box>
   );
