@@ -14,12 +14,13 @@
  */
 const { withTransaction } = require("../config/db");
 const BitacoraModel = require("../models/bitacora.model");
-const { TarifaAdminModel, PrecioConceptoModel, listarConVigencia, eliminar } = require("../models/tarifaAdmin.model");
+const { TarifaAdminModel, PrecioConceptoModel, ReglaPagoModel, listarConVigencia, eliminar } = require("../models/tarifaAdmin.model");
 const { diferencias } = require("../utils/diferencias");
 const { errorNegocio } = require("../utils/errores");
 
 // Campos calculados que no se guardan en la bitácora
 const IGNORAR = ["usada", "ultima_fecha_uso", "cliente_nombre", "tipo_vehiculo", "tipo_servicio", "concepto", "unidad_cobro"];
+// (las reglas de pago al operador usan el mismo esquema: ver ReglaPagoService)
 
 function validarCoherencia(fila) {
   if (fila.km_hasta !== undefined && fila.km_hasta !== null && Number(fila.km_hasta) <= Number(fila.km_desde)) {
@@ -30,7 +31,29 @@ function validarCoherencia(fila) {
   }
 }
 
-function crearServicioVersionado({ modelo, entidad, nombre }) {
+/**
+ * Reglas de pago al operador: coherencia entre "aplica a", concepto y forma.
+ * (La base también lo exige; aquí se da un mensaje claro.)
+ */
+function validarReglaPago(fila) {
+  if (fila.componente === "concepto" && !fila.concepto_id) {
+    throw errorNegocio(422, "FALTA_CONCEPTO", "Indique el trabajo adicional (concepto) al que aplica la regla");
+  }
+  if (fila.componente !== "concepto" && fila.concepto_id) {
+    throw errorNegocio(422, "CONCEPTO_SOBRA", "El concepto solo se indica cuando la regla aplica a un trabajo adicional");
+  }
+  if (fila.forma === "no_paga" && fila.valor !== null && fila.valor !== undefined) {
+    throw errorNegocio(422, "VALOR_SOBRA", "\"No se paga\" no lleva valor: deje el valor vacío");
+  }
+  if (fila.forma === "porcentaje" && !(Number(fila.valor) >= 0 && Number(fila.valor) <= 100)) {
+    throw errorNegocio(422, "PORCENTAJE_INVALIDO", "El porcentaje debe estar entre 0 y 100");
+  }
+  if (fila.forma === "fijo_servicio" && !(Number(fila.valor) >= 0)) {
+    throw errorNegocio(422, "VALOR_INVALIDO", "Indique el valor fijo en pesos");
+  }
+}
+
+function crearServicioVersionado({ modelo, entidad, nombre, validar = () => {} }) {
   return {
     listar: (opciones) => listarConVigencia(modelo, opciones),
 
@@ -42,6 +65,7 @@ function crearServicioVersionado({ modelo, entidad, nombre }) {
 
     async crear({ datos, usuarioId }) {
       validarCoherencia({ km_desde: 0, ...datos });
+      validar(datos);
       return withTransaction(async (client) => {
         const creada = await modelo.crear(client, datos);
         await BitacoraModel.registrar(client, {
@@ -81,6 +105,7 @@ function crearServicioVersionado({ modelo, entidad, nombre }) {
           }
         }
         validarCoherencia({ ...actual, ...cambios });
+        validar({ ...actual, ...cambios });
 
         const actualizada = await modelo.actualizar(client, id, cambios);
         const dif = diferencias(actual, actualizada, { ignorar: IGNORAR });
@@ -123,4 +148,11 @@ function crearServicioVersionado({ modelo, entidad, nombre }) {
 const TarifaAdminService = crearServicioVersionado({ modelo: TarifaAdminModel, entidad: "tarifas", nombre: "tarifa" });
 const PrecioConceptoService = crearServicioVersionado({ modelo: PrecioConceptoModel, entidad: "precios_concepto", nombre: "tarifa de concepto" });
 
-module.exports = { TarifaAdminService, PrecioConceptoService };
+const ReglaPagoService = crearServicioVersionado({
+  modelo: ReglaPagoModel,
+  entidad: "reglas_pago_operador",
+  nombre: "regla de pago",
+  validar: validarReglaPago,
+});
+
+module.exports = { TarifaAdminService, PrecioConceptoService, ReglaPagoService };

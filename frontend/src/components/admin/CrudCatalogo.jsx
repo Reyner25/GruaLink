@@ -11,7 +11,7 @@
  *   campos    [{ campo, etiqueta, tipo, requerido?, soloCrear?, opciones?,
  *                nulable?, ayuda?, deshabilitado?(fila) }]
  *             tipo: "texto" | "numero" | "dinero" | "fecha" | "hora" | "booleano" |
- *                   "select" | "password" | "email"
+ *                   "select" | "password" | "email" | "monto" (número con puntos de miles, sin $)
  *   filtros   valores fijos para el listado (ej. { cliente_id: "generales" })
  *   accionesFila(fila, recargar)  botones extra por fila
  *   puedeEditar   si es false, solo lectura (financiero)
@@ -62,7 +62,7 @@ function aFormulario(campo, valor) {
   if (campo.tipo === "booleano") return Boolean(valor);
   if (valor === null || valor === undefined) return "";
   if (campo.tipo === "select") return String(valor);
-  if (campo.tipo === "numero" || campo.tipo === "dinero") return String(valor).replace(".", ",");
+  if (campo.tipo === "numero" || campo.tipo === "dinero" || campo.tipo === "monto") return String(valor).replace(".", ",");
   if (campo.tipo === "hora") return String(valor).slice(0, 5); // "19:00:00" → "19:00"
   return String(valor);
 }
@@ -71,9 +71,9 @@ function aApi(campo, texto) {
   if (campo.tipo === "booleano") return texto;
   const limpio = typeof texto === "string" ? texto.trim() : texto;
   if (limpio === "") return campo.nulable ? null : undefined;
-  if (campo.tipo === "numero" || campo.tipo === "dinero") {
+  if (campo.tipo === "numero" || campo.tipo === "dinero" || campo.tipo === "monto") {
     // "1.500.000" (dinero con puntos de miles) o "17,5" (decimal con coma)
-    const normal = campo.tipo === "dinero" ? limpio.replace(/\./g, "").replace(",", ".") : limpio.replace(",", ".");
+    const normal = campo.tipo === "dinero" || campo.tipo === "monto" ? limpio.replace(/\./g, "").replace(",", ".") : limpio.replace(",", ".");
     return Number(normal);
   }
   if (campo.tipo === "select") return campo.opcionesNumericas === false ? limpio : /^\d+$/.test(limpio) ? Number(limpio) : limpio;
@@ -105,7 +105,7 @@ function DialogoRegistro({ abierto, fila, campos, ruta, claveUno, titulo, textoN
       if (c.deshabilitado?.(fila)) continue;
       const v = form[c.campo];
       if (c.requerido && (v === "" || v === null)) e[c.campo] = "Obligatorio";
-      if ((c.tipo === "numero" || c.tipo === "dinero") && v !== "" && Number.isNaN(aApi(c, v))) e[c.campo] = "Número inválido";
+      if ((c.tipo === "numero" || c.tipo === "dinero" || c.tipo === "monto") && v !== "" && Number.isNaN(aApi(c, v))) e[c.campo] = "Número inválido";
     }
     return e;
   }

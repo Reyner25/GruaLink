@@ -60,6 +60,30 @@ const PrecioConceptoModel = crearModeloCrud({
   orden: "concepto, cliente_id NULLS FIRST, vigente_desde DESC",
 });
 
+/*
+ * Reglas de pago al operador. Una regla está "usada" si algún servicio
+ * aprobado guardó su pago con ella (pago_operador_detalle la nombra).
+ */
+const USO_REGLA = `FROM servicios s WHERE s.pago_operador_detalle @> jsonb_build_array(jsonb_build_object('regla_id', r.id))`;
+const SELECT_REGLAS_PAGO = `
+  SELECT r.id, r.cliente_id, r.componente, r.concepto_id, r.forma, r.valor, r.vigente_desde, r.vigente_hasta,
+         COALESCE(c.nombre_comercial, c.razon_social, 'Cualquier otra empresa') AS cliente_nombre,
+         ct.nombre AS concepto,
+         EXISTS (SELECT 1 ${USO_REGLA}) AS usada,
+         (SELECT max(s.fecha_servicio) ${USO_REGLA}) AS ultima_fecha_uso
+  FROM reglas_pago_operador r
+  LEFT JOIN clientes c ON c.id = r.cliente_id
+  LEFT JOIN conceptos_tarifa ct ON ct.id = r.concepto_id`;
+
+const ReglaPagoModel = crearModeloCrud({
+  tabla: "reglas_pago_operador",
+  columnas: ["cliente_id", "componente", "concepto_id", "forma", "valor", "vigente_desde", "vigente_hasta"],
+  select: SELECT_REGLAS_PAGO,
+  orden: "cliente_id NULLS FIRST, componente, concepto_id, vigente_desde DESC",
+});
+ReglaPagoModel.selectListado = SELECT_REGLAS_PAGO;
+ReglaPagoModel.ordenListado = "cliente_id NULLS FIRST, componente, concepto NULLS FIRST, vigente_desde DESC";
+
 /**
  * Listado con filtros especiales:
  *   cliente_id = "generales" → solo cliente_id NULL
@@ -85,11 +109,12 @@ async function listarConVigencia(modelo, { filtros = {}, clienteId, vigenteEn, l
   }
   const where = condiciones.length ? `WHERE ${condiciones.join(" AND ")}` : "";
   valores.push(limite, (pagina - 1) * limite);
-  const select = modelo === TarifaAdminModel ? SELECT_TARIFAS : SELECT_PRECIOS;
+  const select = modelo.selectListado || (modelo === TarifaAdminModel ? SELECT_TARIFAS : SELECT_PRECIOS);
   const orden =
-    modelo === TarifaAdminModel
+    modelo.ordenListado ||
+    (modelo === TarifaAdminModel
       ? "cliente_id NULLS FIRST, tipo_servicio, tipo_vehiculo, vigente_desde DESC, km_desde"
-      : "concepto, cliente_id NULLS FIRST, vigente_desde DESC";
+      : "concepto, cliente_id NULLS FIRST, vigente_desde DESC");
   const { rows } = await pool.query(
     `SELECT * FROM (${select}) AS t ${where}
      ORDER BY ${orden}
@@ -103,4 +128,4 @@ async function eliminar(client, tabla, id) {
   await client.query(`DELETE FROM ${tabla} WHERE id = $1`, [id]);
 }
 
-module.exports = { TarifaAdminModel, PrecioConceptoModel, listarConVigencia, eliminar };
+module.exports = { TarifaAdminModel, PrecioConceptoModel, ReglaPagoModel, listarConVigencia, eliminar };

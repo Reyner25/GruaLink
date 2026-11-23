@@ -377,6 +377,7 @@ async function crearTarifas(client) {
   }
   console.log(`✔ Tarifas 2026: ${tarifas} tarifa(s) y ${precios} precio(s) de conceptos nuevos (lo que ya existía no se duplicó)`);
   await crearBolsaSuma(client);
+  await crearReglasPago(client, conceptos);
   if (DIFERENCIAS.length) {
     console.log(`\n⚠ ${DIFERENCIAS.length} valor(es) de la base NO coinciden con el archivo (no se cambiaron; revíselos en el panel → Tarifas):`);
     DIFERENCIAS.forEach((d) => console.log(`  - ${d}`));
@@ -416,6 +417,43 @@ async function crearBolsaSuma(client) {
     await insertar(columna, 95.01, null, "a_convenir", null); // > 95 km
   }
   console.log(`✔ Bolsa de km de Suma: ${celdas} celdas cargadas`);
+}
+
+/**
+ * PAGO AL OPERADOR (23/11/2026). [nit (null = cualquier otra empresa),
+ * componente, clave del concepto, forma, valor]. Se editan en el panel:
+ * Tarifas → "Pago a operadores".
+ */
+const REGLAS_PAGO = [
+  [null, "tarifa_basica", null, "porcentaje", 8],
+  [null, "valor_a_convenir", null, "porcentaje", 8], // rescate
+  [null, "concepto", "cardan", "fijo_servicio", 20000], // una vez por servicio
+  [null, "concepto", "persiana", "porcentaje", 8],
+  [null, "concepto", "camara", "no_paga", null],
+  [null, "concepto", "recargo", "no_paga", null],
+  [null, "concepto", "standby", "no_paga", null],
+  [null, "concepto", "kit", "no_paga", null],
+  [null, "concepto", "reiniciada", "no_paga", null],
+  ["900364615", "total", null, "porcentaje", 6], // SUMA: 6 % del valor del servicio
+];
+
+async function crearReglasPago(client, conceptos) {
+  let nuevas = 0;
+  for (const [nit, componente, clave, forma, valor] of REGLAS_PAGO) {
+    const clienteId = nit ? await idPorNombre(client, "clientes", "nit", nit) : null;
+    const conceptoId = clave ? conceptos[clave] : null;
+    const { rowCount } = await client.query(
+      `INSERT INTO reglas_pago_operador (cliente_id, componente, concepto_id, forma, valor, vigente_desde)
+       SELECT $1::int, $2::varchar, $3::int, $4::varchar, $5::numeric, $6::date
+       WHERE NOT EXISTS (
+         SELECT 1 FROM reglas_pago_operador
+         WHERE cliente_id IS NOT DISTINCT FROM $1::int AND componente = $2::varchar AND concepto_id IS NOT DISTINCT FROM $3::int
+       )`,
+      [clienteId, componente, conceptoId, forma, valor, VIGENCIA_2026.desde],
+    );
+    nuevas += rowCount;
+  }
+  console.log(`✔ Reglas de pago al operador: ${nuevas} nueva(s)`);
 }
 
 // --solo-catalogos (npm run datos-iniciales): catálogos y tarifas SIN usuarios de prueba.

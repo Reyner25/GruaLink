@@ -4,6 +4,7 @@
  */
 const ServicioService = require("../services/servicio.service");
 const ServicioModel = require("../models/servicio.model");
+const PagoOperador = require("../services/pagoOperador.service");
 const { presentarServicio, presentarConceptos } = require("../views/serializers");
 const { tienePermiso } = require("../middlewares/permisos");
 
@@ -114,6 +115,8 @@ async function detalle(req, res, next) {
     res.json({
       servicio: presentarServicio(servicio, req.usuario.rol),
       conceptos: presentarConceptos(conceptos, req.usuario.rol),
+      // Pago al operador (solo para quien ve valores; provisional hasta aprobar)
+      ...(tienePermiso(req.usuario.rol, "valores:ver") ? { pago_operador: await PagoOperador.deServicio(servicio, conceptos) } : {}),
     });
   } catch (err) {
     next(err);

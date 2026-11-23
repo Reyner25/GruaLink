@@ -30,6 +30,8 @@ router.use("/gruas", gruaRoutes);
 router.use("/usuarios", usuarioRoutes);
 router.use("/tarifas", tarifaRoutes.tarifas);
 router.use("/precios-concepto", tarifaRoutes.preciosConcepto);
+router.use("/pago-operador", tarifaRoutes.reglasPagoOperador); // reglas de pago al operador
+router.use("/liquidacion-operadores", require("./liquidacion.routes")); // cuánto se le paga a cada operador
 
 // Reportes y auditoría
 router.use("/dashboard", reportes.dashboard);

@@ -169,7 +169,8 @@ const ServicioModel = {
   async reabrir(client, id) {
     await client.query(
       `UPDATE servicios
-       SET estado = 'en_revision', valor_aprobado = NULL, aprobado_por = NULL, aprobado_en = NULL
+       SET estado = 'en_revision', valor_aprobado = NULL, aprobado_por = NULL, aprobado_en = NULL,
+           valor_operador = NULL, pago_operador_detalle = NULL -- el pago se vuelve a calcular al aprobar
        WHERE id = $1`,
       [id],
     );

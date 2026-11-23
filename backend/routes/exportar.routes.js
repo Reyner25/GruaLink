@@ -221,6 +221,59 @@ router.get("/ordenes/:id", param("id").isInt({ min: 1 }).withMessage("Id inváli
   }
 });
 
+// ---------- Liquidación de operadores (pago al operador) ----------
+const PagoOperador = require("../services/pagoOperador.service");
+const { filtrosLiquidacion, leerFiltros } = require("./liquidacion.routes");
+
+router.get("/pago-operadores", requierePermiso("valores:ver"), ...filtrosLiquidacion, async (req, res, next) => {
+  try {
+    const { operadores, servicios } = await PagoOperador.liquidacion(leerFiltros(req.query));
+    const buffer = await crearExcel({
+      titulo: "Liquidación de operadores",
+      hojas: [
+        {
+          nombre: "Resumen por operador",
+          totales: ["servicios", "aprobados", "pago_aprobado", "pago_pendiente", "pago_total"],
+          columnas: [
+            { titulo: "Operador", campo: "operador", ancho: 26 },
+            { titulo: "Servicios", campo: "servicios", formato: "entero", ancho: 10 },
+            { titulo: "Aprobados", campo: "aprobados", formato: "entero", ancho: 10 },
+            { titulo: "Pago aprobado", campo: "pago_aprobado", formato: "moneda", ancho: 15 },
+            { titulo: "Pendiente (sin aprobar)", campo: "pago_pendiente", formato: "moneda", ancho: 15 },
+            { titulo: "Total", campo: "pago_total", formato: "moneda", ancho: 15 },
+          ],
+          filas: operadores,
+        },
+        {
+          nombre: "Detalle por servicio",
+          totales: ["valor_servicio", "pago"],
+          columnas: [
+            { titulo: "Operador", campo: "operador", ancho: 24 },
+            { titulo: "Orden", campo: "numero_orden", ancho: 9 },
+            { titulo: "Fecha", campo: "fecha_servicio", formato: "fecha", ancho: 11 },
+            { titulo: "Cliente", campo: "cliente", ancho: 20 },
+            { titulo: "Servicio", campo: "tipo_servicio", ancho: 16 },
+            { titulo: "Grúa", campo: "grua", ancho: 7 },
+            { titulo: "Estado", campo: "estado_texto", ancho: 12 },
+            { titulo: "Valor del servicio", campo: "valor_servicio", formato: "moneda", ancho: 14 },
+            { titulo: "Pago al operador", campo: "pago", formato: "moneda", ancho: 14 },
+            { titulo: "Provisional", campo: "provisional", formato: "si_no", ancho: 10 },
+            { titulo: "Cómo se calculó", campo: "como", ancho: 60 },
+          ],
+          filas: servicios.map((s) => ({
+            ...s,
+            estado_texto: ESTADOS[s.estado] || s.estado,
+            como: s.partes.filter((p) => p.pago > 0).map((p) => `${p.parte}: ${p.regla}`).join(" · "),
+          })),
+        },
+      ],
+    });
+    enviarExcel(res, buffer, `GruaLink_pago_operadores_${sufijoFechas(req.query)}.xlsx`);
+  } catch (err) {
+    next(err);
+  }
+});
+
 router.get("/promedio-gruas", ...filtrosValidos, async (req, res, next) => {
   try {
     const { desde, hasta } = req.query;

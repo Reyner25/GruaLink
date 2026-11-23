@@ -91,6 +91,28 @@ Se borraron las pantallas del panel anterior (`PanelPage`, `ListadoOrdenesPage`,
 - Precio: el del concepto "Recargo nocturno" del cliente (o el general).
 - Código: `esNocturno` y `aplicarRecargoNocturno` en `backend/services/tarifa.service.js` (constantes `RECARGO_NOCTURNO`). Los servicios anteriores no se recalcularon.
 
+## 5.2 Pago al operador (23/11/2026, antes P11)
+
+**Configuración:** *Tarifas → Pago a operadores*. Reglas con vigencia, igual que las tarifas: una regla usada no se modifica, solo se cierra su vigencia y se crea otra. Para cada parte del servicio se usa la regla propia del cliente y, si no tiene, la de **Cualquier otra empresa**.
+
+| Cliente | Parte | Regla inicial |
+|---|---|---|
+| Cualquier otra empresa | Tarifa básica (incluye fallido y parte trasera) | 8 % |
+| | Servicios a convenir (rescate) | 8 % del aprobado sin adicionales |
+| | Desmontar cardán | **$20.000 fijos, una vez por servicio** |
+| | Persiana | 8 % |
+| | Cámaras, recargo nocturno, stand-by, kit antiderrames, reiniciada | No se paga |
+| SUMA | Todo el valor del servicio | **6 %** (reemplaza a todas las demás partes) |
+
+- **Base:** el **valor aprobado**. Antes de aprobar, el pago es provisional, calculado con el valor calculado. Si se aprueba con descuento, las partes en % bajan en la misma proporción; el fijo del cardán no cambia.
+- **Al aprobar**, el pago queda guardado (`servicios.valor_operador` y `pago_operador_detalle`) y no cambia aunque después se modifiquen las reglas. Al reabrir el servicio se borra y se recalcula en la nueva aprobación.
+- **Dónde se ve:**
+  - *Detalle del servicio*: panel "Pago al operador" con cada parte, su regla, la base y el pago.
+  - *Reportes → Pago a operadores*: por periodo y operador, separa aprobado (definitivo) de pendiente (provisional). Exporta a Excel con resumen por operador y detalle por servicio.
+- **Quién lo ve:** administrador y financiero. El operador **no** ve valores (P12).
+- **Código:** `backend/services/pagoOperador.service.js` (cálculo y liquidación), `migrations/011_pago_operador.sql`, rutas `/api/pago-operador` (reglas) y `/api/liquidacion-operadores`.
+- **Pendiente:** "Eje" y "Tubo de admisión" no existen como conceptos. Si se crean en *Catálogos*, hay que agregarles su regla ($20.000 fijo). Ojo: cada concepto con fijo suma su propio bono.
+
 ## 6. Exportar a Excel (23/11/2026)
 
 Botón **"Exportar a Excel"** en *Inicio*, *Servicios* y *Promedio de grúas*. Exporta **todos** los registros del filtro actual (no solo la página visible).
@@ -128,4 +150,4 @@ Cada orden (tamaño carta): encabezado con N.º de orden, fecha y estado; datos 
 
 - Reportes por operador y por cliente en pantalla propia (el backend ya tiene `/api/dashboard/por/operador` y `/por/cliente`).
 - Cierre de turnos olvidados desde el panel (el backend ya tiene `POST /api/turnos/:id/cerrar`).
-- Pantalla de configuración (porcentaje del operador, horas de corte del recargo nocturno) cuando se definan P11 y P17.
+- ~~Pantalla de configuración (porcentaje del operador, recargo nocturno)~~: hecho en Tarifas → Pago a operadores y Clientes → Recargo nocturno desde.

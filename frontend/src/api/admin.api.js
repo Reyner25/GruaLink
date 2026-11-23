@@ -24,6 +24,12 @@ export async function promedioGruas(filtros) {
   return data;
 }
 
+// ---------- Pago a operadores ----------
+export async function liquidacionOperadores(filtros) {
+  const { data } = await api.get("/liquidacion-operadores", { params: limpiar(filtros) });
+  return data;
+}
+
 // ---------- Bolsa de km mensual (Suma) ----------
 export async function clientesConBolsa() {
   const { data } = await api.get("/bolsa-km/clientes");

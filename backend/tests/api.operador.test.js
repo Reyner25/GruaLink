@@ -462,6 +462,89 @@ test("CAPITALBUS: precio propio de conceptos; el administrador agrega 1,5 h de s
   assert.strictEqual(admin.datos.servicio.valor_conceptos, 204250);
 });
 
+test("pago al operador: 8 % por parte + bono de cardán una vez; base = valor aprobado", async () => {
+  const persiana = await idDe("SELECT id FROM conceptos_tarifa WHERE nombre = $1", "Quitar persiana");
+  const s = await api("POST", "/api/servicios", { token: tokens.op1, body: datosServicio() });
+  const id = s.datos.servicio.id;
+  await api("POST", `/api/servicios/${id}/finalizar`, {
+    token: tokens.op1,
+    body: datosFinalizar({
+      conceptos: [
+        { concepto_id: ids.cardan, cantidad: 2 },
+        { concepto_id: persiana, cantidad: 1 },
+        { concepto_id: ids.camara, cantidad: 2 },
+      ],
+    }),
+  });
+  // Bogotá Móvil: 393.000 + cardán 2 × 92.400 + persiana 25.700 + cámaras 2 × 25.700 = 654.900
+  let d = (await api("GET", `/api/servicios/${id}`, { token: tokens.admin })).datos;
+  assert.strictEqual(d.servicio.valor_calculado, 654900);
+  // 8 % × 393.000 = 31.440 + cardán $20.000 (una vez) + 8 % × 25.700 = 2.056 + cámaras 0 = 53.496
+  assert.strictEqual(d.pago_operador.valor, 53496);
+  assert.strictEqual(d.pago_operador.provisional, true);
+
+  // El operador no ve el pago (ni ningún valor)
+  const op = (await api("GET", `/api/servicios/${id}`, { token: tokens.op1 })).datos;
+  assert.strictEqual(op.pago_operador, undefined);
+  assert.strictEqual(op.servicio.valor_operador, undefined);
+
+  // Aprobado con 10 % de descuento: las partes en % bajan 10 %; el bono no
+  const ap = await api("POST", `/api/servicios/${id}/aprobar`, { token: tokens.admin, body: { valor_aprobado: 589410, motivo: "Descuento 10 %" } });
+  assert.strictEqual(ap.status, 200, JSON.stringify(ap.datos));
+  d = (await api("GET", `/api/servicios/${id}`, { token: tokens.admin })).datos;
+  assert.strictEqual(d.pago_operador.valor, 50146); // 28.296 + 20.000 + 1.850
+  assert.strictEqual(d.pago_operador.provisional, false);
+  assert.strictEqual(d.servicio.valor_operador, 50146); // quedó guardado
+
+  // Reglas: la del cardán queda "usada" y no se puede crear otra que se cruce
+  const reglas = (await api("GET", "/api/pago-operador", { token: tokens.admin })).datos.reglas;
+  const cardan = reglas.find((r) => r.componente === "concepto" && r.concepto_id === ids.cardan && r.cliente_id === null);
+  assert.strictEqual(cardan.usada, true);
+  const cruce = await api("POST", "/api/pago-operador", {
+    token: tokens.admin,
+    body: { cliente_id: null, componente: "concepto", concepto_id: ids.cardan, forma: "fijo_servicio", valor: 25000, vigente_desde: ids.hoy },
+  });
+  assert.strictEqual(cruce.status, 409);
+  const usada = await api("PATCH", `/api/pago-operador/${cardan.id}`, { token: tokens.admin, body: { valor: 25000 } });
+  assert.strictEqual(usada.datos.codigo, "TARIFA_EN_USO");
+  const sinConcepto = await api("POST", "/api/pago-operador", {
+    token: tokens.admin,
+    body: { cliente_id: ids.capitalbus, componente: "concepto", forma: "porcentaje", valor: 5, vigente_desde: ids.hoy },
+  });
+  assert.strictEqual(sinConcepto.datos.codigo, "FALTA_CONCEPTO");
+
+  // Liquidación: el operador no tiene acceso; el financiero sí
+  const q = `desde=${ids.hoy}&hasta=${ids.hoy}&operador_id=${ids.op1}`;
+  assert.strictEqual((await api("GET", `/api/liquidacion-operadores?${q}`, { token: tokens.op1 })).status, 403);
+  const liq = (await api("GET", `/api/liquidacion-operadores?${q}`, { token: tokens.fin })).datos;
+  const fila = liq.servicios.find((x) => x.servicio_id === id);
+  assert.strictEqual(fila.pago, 50146);
+  assert.strictEqual(fila.provisional, false);
+  const resumen = liq.operadores.find((o) => o.operador_id === ids.op1);
+  const suma = (lista) => lista.reduce((t, x) => t + x.pago, 0);
+  assert.strictEqual(resumen.pago_total, suma(liq.servicios.filter((x) => x.operador_id === ids.op1)));
+
+  const xls = await fetch(`${base}/api/exportar/pago-operadores?${q}`, { headers: { Authorization: `Bearer ${tokens.admin}` } });
+  assert.strictEqual(xls.status, 200);
+  assert.match(xls.headers.get("content-type"), /spreadsheetml/);
+
+  // Regla propia de UNA parte (CAPITALBUS: persiana 10 %): las demás partes siguen con la general
+  const propia = await api("POST", "/api/pago-operador", {
+    token: tokens.admin,
+    body: { cliente_id: ids.capitalbus, componente: "concepto", concepto_id: persiana, forma: "porcentaje", valor: 10, vigente_desde: ids.hoy },
+  });
+  assert.strictEqual(propia.status, 201, JSON.stringify(propia.datos));
+  const cb = await api("POST", "/api/servicios", { token: tokens.op1, body: datosServicio({ cliente_id: ids.capitalbus }) });
+  await api("POST", `/api/servicios/${cb.datos.servicio.id}/finalizar`, {
+    token: tokens.op1,
+    body: datosFinalizar({ conceptos: [{ concepto_id: persiana, cantidad: 1 }] }),
+  });
+  const pcb = (await api("GET", `/api/servicios/${cb.datos.servicio.id}`, { token: tokens.admin })).datos.pago_operador;
+  // 8 % × 368.000 (tarifa CAPITALBUS, regla general) = 29.440 + 10 % × 24.800 (regla propia) = 2.480
+  assert.strictEqual(pcb.valor, 31920);
+  await api("DELETE", `/api/pago-operador/${propia.datos.regla.id}`, { token: tokens.admin, body: { motivo: "Fin de la prueba" } });
+});
+
 test("Suma: bolsa de km mensual (columna por km del mes, fila por km del servicio)", async () => {
   const suma = await idDe("SELECT id FROM clientes WHERE nit = $1", "900364615");
   const nuevo = async (extra = {}) => {
@@ -535,6 +618,8 @@ test("Suma: bolsa de km mensual (columna por km del mes, fila por km del servici
   await api("POST", `/api/servicios/${s1}/aprobar`, { token: tokens.admin, body: {} });
   await corregir(s4, { fuera_disponibilidad: false }); // S4 entra a la bolsa: 928 km → columna 900–1200
   assert.strictEqual((await ver(s1)).servicio.valor_aprobado, 510656);
+  // Pago al operador en Suma: 6 % del valor aprobado (510.656 → 30.639)
+  assert.strictEqual((await ver(s1)).pago_operador.valor, 30639);
   assert.strictEqual(await valor(s3), 274920);
 
   // Resumen de la bolsa del mes cerrado y del mes abierto

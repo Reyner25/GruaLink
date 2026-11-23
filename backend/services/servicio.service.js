@@ -26,6 +26,7 @@ const CatalogosModel = require("../models/catalogos.model");
 const BitacoraModel = require("../models/bitacora.model");
 const { calcularValores } = require("./tarifa.service");
 const BolsaKm = require("./bolsaKm.service");
+const PagoOperador = require("./pagoOperador.service");
 
 // Fecha "YYYY-MM-DD" → "YYYY-MM" (mes de la bolsa de km)
 const mesDe = (fecha) => String(fecha).slice(0, 7);
@@ -332,6 +333,8 @@ const ServicioService = {
         aprobado_por: usuarioId,
         aprobado_en: new Date(),
       });
+      // Pago al operador: queda fijo con el valor aprobado y las reglas de hoy
+      const pago = await PagoOperador.guardarAlAprobar(client, id);
       const aprobado = await ServicioModel.obtenerPorId(id, { client });
       await BitacoraModel.registrar(client, {
         usuarioId,
@@ -339,7 +342,7 @@ const ServicioService = {
         registroId: id,
         operacion: "aprobar",
         anteriores: { estado: actual.estado, valor_aprobado: actual.valor_aprobado },
-        nuevos: { estado: "aprobado", valor_aprobado: valor, valor_calculado: calculado },
+        nuevos: { estado: "aprobado", valor_aprobado: valor, valor_calculado: calculado, valor_operador: pago.valor },
         motivo,
       });
       return aprobado;

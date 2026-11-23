@@ -78,7 +78,7 @@ Ahora devuelve también `tipos_servicio` y `conceptos` (sin precios), y el NIT y
 | P8 | Km facturables = km de servicio (sin vacío) | `kmFacturables()` en `tarifa.service.js` |
 | P9 | El operador puede reportar conceptos (cardán, persiana, stand-by…) al finalizar; el precio lo pone el servidor | `servicio.validator.js` |
 | P10 | Conceptos "porcentaje" se rechazan | `tarifa.service.js` |
-| P11 | `porcentaje_operador` aún no se calcula | — |
+| P11 | ✔ Resuelta (23/11/2026): reglas de pago al operador, migración 011 (ver ETAPA-4, sección 5.2) | — |
 | P12 | El operador no ve valores | `serializers.js` |
 | P13 | Fecha del servicio entre el día de inicio del turno y hoy | `servicio.service.js` |
 

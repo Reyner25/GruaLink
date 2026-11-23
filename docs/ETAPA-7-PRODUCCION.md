@@ -170,4 +170,4 @@ Si la migración agregó tablas: `cd ..\backend; npm run crear-usuario-app` (Ent
 - [ ] Clientes y grúas reales cargados
 - [ ] Respaldo diario programado y **una restauración de prueba** hecha
 - [ ] Cada operador creado con su usuario y probado en su celular
-- [ ] Decididas P11 (porcentaje del operador) y P17 (recargo nocturno)
+- [x] Decididas P11 (pago al operador: Tarifas → Pago a operadores) y P17 (recargo nocturno automático)

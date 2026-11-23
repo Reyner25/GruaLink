@@ -3,6 +3,7 @@
  *
  *  /api/tarifas            tarifa BÁSICA (cliente + vehículo + tipo de servicio + km)
  *  /api/precios-concepto   precio de cada concepto adicional por cliente
+ *  /api/pago-operador      reglas de pago al operador (% de la tarifa, fijo por cardán…)
  *
  * Para ambas:
  *  GET    /        ?cliente_id=<id>|generales  ?vigente_en=AAAA-MM-DD  (+ filtros propios)
@@ -18,7 +19,7 @@ const { body, query } = require("express-validator");
 const { autenticar } = require("../middlewares/auth");
 const { requierePermiso } = require("../middlewares/permisos");
 const c = require("../validators/comun");
-const { TarifaAdminService, PrecioConceptoService } = require("../services/tarifaAdmin.service");
+const { TarifaAdminService, PrecioConceptoService, ReglaPagoService } = require("../services/tarifaAdmin.service");
 
 // cliente_id: número o null (null = Clientes generales)
 const clienteId = (opcional) => {
@@ -140,4 +141,30 @@ const preciosConcepto = crearRouter(PrecioConceptoService, {
   filtros: ["concepto_id"],
 });
 
-module.exports = { tarifas, preciosConcepto };
+// ---------- Pago a operadores (/api/pago-operador) ----------
+const COMPONENTES = ["total", "tarifa_basica", "valor_a_convenir", "concepto"];
+const FORMAS = ["porcentaje", "fijo_servicio", "no_paga"];
+const camposReglaPago = (opcional) => [
+  clienteId(opcional),
+  (opcional ? body("componente").optional({ values: "undefined" }) : body("componente")).isIn(COMPONENTES).withMessage("Indique a qué aplica la regla"),
+  body("concepto_id")
+    .optional({ values: "undefined" })
+    .custom((v) => v === null || (Number.isInteger(v) && v > 0))
+    .withMessage("Concepto inválido"),
+  (opcional ? body("forma").optional({ values: "undefined" }) : body("forma")).isIn(FORMAS).withMessage("Indique cómo se paga"),
+  body("valor")
+    .optional({ values: "undefined" })
+    .custom((v) => v === null || (typeof v === "number" && v >= 0 && v <= 99999999))
+    .withMessage("Valor inválido"),
+  c.fecha("vigente_desde", { opcional }),
+  c.fecha("vigente_hasta", { opcional: true, nulable: true }),
+];
+
+const reglasPagoOperador = crearRouter(ReglaPagoService, {
+  clave: "reglas",
+  claveUno: "regla",
+  campos: camposReglaPago,
+  filtros: [],
+});
+
+module.exports = { tarifas, preciosConcepto, reglasPagoOperador };

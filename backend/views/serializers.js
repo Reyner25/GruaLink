@@ -19,6 +19,8 @@ const CAMPOS_FINANCIEROS = [
   "tarifa_bolsa_id",
   "bolsa_km_mes",
   "bolsa_valor",
+  "valor_operador",
+  "pago_operador_detalle",
 ];
 
 function puedeVerValores(rol) {

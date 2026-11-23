@@ -21,6 +21,7 @@ import Servicios from "./pages/admin/Servicios";
 import ServicioDetalle from "./pages/admin/ServicioDetalle";
 import PromedioGruas from "./pages/admin/PromedioGruas";
 import BolsaKm from "./pages/admin/BolsaKm";
+import PagoOperadores from "./pages/admin/PagoOperadores";
 import Bitacora from "./pages/admin/Bitacora";
 import Clientes from "./pages/admin/Clientes";
 import Gruas from "./pages/admin/Gruas";
@@ -85,6 +86,7 @@ export default function App() {
         <Route path="servicios/:id" element={<ServicioDetalle />} />
         <Route path="reportes/promedio-gruas" element={<PromedioGruas />} />
         <Route path="reportes/bolsa-km" element={<BolsaKm />} />
+        <Route path="reportes/pago-operadores" element={<PagoOperadores />} />
         <Route path="tarifas" element={<Tarifas />} />
         <Route path="clientes" element={<Clientes />} />
         <Route path="gruas" element={<Gruas />} />

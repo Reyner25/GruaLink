@@ -32,6 +32,7 @@ import DashboardIcon from "@mui/icons-material/Dashboard";
 import AssignmentIcon from "@mui/icons-material/Assignment";
 import InsightsIcon from "@mui/icons-material/Insights";
 import RouteIcon from "@mui/icons-material/Route";
+import PaymentsIcon from "@mui/icons-material/Payments";
 import HistoryEduIcon from "@mui/icons-material/HistoryEdu";
 import LogoutIcon from "@mui/icons-material/Logout";
 import PriceChangeIcon from "@mui/icons-material/PriceChange";
@@ -59,6 +60,7 @@ const MENU = [
   { seccion: "Reportes" },
   { texto: "Promedio de grúas", ruta: "/admin/reportes/promedio-gruas", icono: <InsightsIcon /> },
   { texto: "Bolsa de km (Suma)", ruta: "/admin/reportes/bolsa-km", icono: <RouteIcon />, permiso: "reportes:ver" },
+  { texto: "Pago a operadores", ruta: "/admin/reportes/pago-operadores", icono: <PaymentsIcon />, permiso: "valores:ver" },
   { seccion: "Control" },
   { texto: "Bitácora", ruta: "/admin/bitacora", icono: <HistoryEduIcon />, permiso: "bitacora:ver" },
 ];

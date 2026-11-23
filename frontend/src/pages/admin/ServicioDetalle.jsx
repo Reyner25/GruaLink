@@ -58,6 +58,50 @@ import BotonExportar from "../../components/admin/BotonExportar";
 import { DialogoAprobar, DialogoCorregir, DialogoMotivo } from "../../components/admin/DialogosServicio";
 import { Cargando, ErrorCarga, EstadoServicio } from "../../components/operador/Comunes";
 
+/**
+ * Pago al operador: cómo se calculó cada parte (reglas de Tarifas → "Pago a
+ * operadores"). Provisional hasta que el servicio se aprueba.
+ */
+function PagoOperador({ pago, operador }) {
+  return (
+    <Panel
+      titulo="Pago al operador"
+      accion={
+        pago.anulado ? (
+          <Chip size="small" label="Anulado: no se paga" />
+        ) : (
+          <Chip size="small" label={pago.provisional ? "Provisional (sin aprobar)" : "Definitivo (aprobado)"} color={pago.provisional ? "warning" : "success"} />
+        )
+      }
+    >
+      <Table size="small">
+        <TableHead>
+          <TableRow sx={{ "& th": { fontWeight: 700 } }}>
+            <TableCell>Parte</TableCell>
+            <TableCell>Regla</TableCell>
+            <TableCell align="right">Base</TableCell>
+            <TableCell align="right">Pago</TableCell>
+          </TableRow>
+        </TableHead>
+        <TableBody>
+          {pago.detalle.map((d, i) => (
+            <TableRow key={i}>
+              <TableCell>{d.parte}</TableCell>
+              <TableCell>{d.regla}</TableCell>
+              <TableCell align="right">{d.base === null ? "—" : formatoMoneda(d.base)}</TableCell>
+              <TableCell align="right">{formatoMoneda(d.pago)}</TableCell>
+            </TableRow>
+          ))}
+          <TableRow sx={{ "& td": { fontWeight: 700 } }}>
+            <TableCell colSpan={3}>Total para {operador}</TableCell>
+            <TableCell align="right">{formatoMoneda(pago.valor)}</TableCell>
+          </TableRow>
+        </TableBody>
+      </Table>
+    </Panel>
+  );
+}
+
 /** Par "etiqueta: valor" en dos columnas. */
 function Dato({ etiqueta, children }) {
   return (
@@ -161,7 +205,7 @@ export default function ServicioDetalle() {
   if (detalle.cargando && !detalle.datos) return <Cargando />;
   if (detalle.error) return <ErrorCarga mensaje={detalle.error} onReintentar={detalle.recargar} />;
 
-  const { servicio: s, conceptos } = detalle.datos;
+  const { servicio: s, conceptos, pago_operador: pago } = detalle.datos;
   const abierto = ESTADOS_ABIERTOS.includes(s.estado);
   const revisable = ["finalizado", "en_revision"].includes(s.estado);
   const aprobado = s.estado === "aprobado";
@@ -393,6 +437,8 @@ export default function ServicioDetalle() {
                 </TableBody>
               </Table>
             </Panel>
+
+            {pago && <PagoOperador pago={pago} operador={s.operador_nombre} />}
           </Stack>
         </Grid>
 

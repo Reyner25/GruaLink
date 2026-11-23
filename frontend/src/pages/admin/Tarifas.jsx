@@ -4,6 +4,8 @@
  * Pestaña "Tarifa básica": precio por cliente (o Clientes generales),
  *   tipo de servicio, tipo de vehículo, rango de km y vigencia.
  * Pestaña "Precios de conceptos": cardán, persiana, stand-by… por cliente.
+ * Pestaña "Pago a operadores": reglas de cuánto se le paga al operador
+ *   (8 % de la tarifa, $20.000 fijos por cardán, Suma 6 %…).
  *
  * Reglas que aplica el backend y que aquí se reflejan:
  *  - No pueden existir dos tarifas que se crucen (mismo cliente, servicio,
@@ -13,7 +15,7 @@
  *    cierra la actual y se crea una nueva desde el día siguiente.
  */
 import { useState } from "react";
-import { Card, Chip, MenuItem, Tab, Tabs, TextField, Tooltip } from "@mui/material";
+import { Alert, Card, Chip, MenuItem, Tab, Tabs, TextField, Tooltip } from "@mui/material";
 import { useAuth } from "../../context/AuthContext";
 import { useCargar } from "../../hooks/useCargar";
 import { obtenerCatalogos } from "../../api/catalogos.api";
@@ -113,6 +115,7 @@ export default function Tarifas() {
         <Tabs value={pestana} onChange={(_, v) => setPestana(v)}>
           <Tab value="basica" label="Tarifa básica" />
           <Tab value="conceptos" label="Precios de conceptos" />
+          <Tab value="operadores" label="Pago a operadores" />
         </Tabs>
       </Card>
 
@@ -200,6 +203,89 @@ export default function Tarifas() {
           ]}
         />
       )}
+
+      {pestana === "operadores" && (
+        <>
+          <Alert severity="info" sx={{ mb: 2 }}>
+            Cuánto se le paga al operador por cada servicio. Para cada parte se usa la regla propia del cliente y, si no tiene, la de{" "}
+            <b>Cualquier otra empresa</b>. Una regla de "Todo el valor del servicio" (Suma: 6 %) reemplaza a todas las demás. Se calcula sobre el{" "}
+            <b>valor aprobado</b> y queda fijo al aprobar. Un trabajo adicional sin regla no se paga.
+          </Alert>
+          <CrudCatalogo
+            ruta="/pago-operador"
+            clave="reglas"
+            claveUno="regla"
+            titulo="Regla de pago"
+            textoNuevo="Nueva regla"
+            puedeEditar={editar}
+            permitirBorrar
+            puedeBorrarFila={(f) => !f.usada}
+            filtros={filtros}
+            barraExtra={barra}
+            columnas={[
+              { campo: "cliente_nombre", titulo: "Cliente" },
+              { campo: "componente", titulo: "Aplica a", render: (f) => (f.componente === "concepto" ? f.concepto : COMPONENTES_PAGO[f.componente]) },
+              { campo: "forma", titulo: "Cómo se paga", render: comoSePaga },
+              { campo: "vigencia", titulo: "Vigencia", render: vigencia },
+              { campo: "usada", titulo: "Uso", render: uso },
+            ]}
+            campos={[
+              {
+                ...campoCliente,
+                opciones: [{ valor: "", texto: OTRAS_EMPRESAS }, ...clientes.map((c) => ({ valor: c.id, texto: c.nombre }))],
+                ayuda: "Cualquier otra empresa = regla para todos los clientes que no tengan reglas propias",
+              },
+              bloqueable({
+                campo: "componente",
+                etiqueta: "Aplica a",
+                tipo: "select",
+                requerido: true,
+                opcionesNumericas: false,
+                opciones: Object.entries(COMPONENTES_PAGO).map(([valor, texto]) => ({ valor, texto })),
+              }),
+              bloqueable({
+                campo: "concepto_id",
+                etiqueta: "Trabajo adicional",
+                tipo: "select",
+                nulable: true,
+                opciones: [{ valor: "", texto: "—" }, ...conceptos.map((c) => ({ valor: c.id, texto: c.nombre }))],
+                ayuda: "Solo si la regla aplica a \"Un trabajo adicional\"",
+              }),
+              bloqueable({
+                campo: "forma",
+                etiqueta: "Cómo se paga",
+                tipo: "select",
+                requerido: true,
+                opcionesNumericas: false,
+                porDefecto: "porcentaje",
+                opciones: [
+                  { valor: "porcentaje", texto: "Porcentaje (%)" },
+                  { valor: "fijo_servicio", texto: "Valor fijo por servicio ($)" },
+                  { valor: "no_paga", texto: "No se paga" },
+                ],
+              }),
+              bloqueable({
+                campo: "valor",
+                etiqueta: "Valor",
+                tipo: "monto",
+                nulable: true,
+                ayuda: "Porcentaje: 8 (o 6,5) · Fijo: 20.000 · Vacío si no se paga",
+              }),
+              ...camposVigencia,
+            ]}
+          />
+        </>
+      )}
     </>
   );
 }
+
+const OTRAS_EMPRESAS = "Cualquier otra empresa";
+const COMPONENTES_PAGO = {
+  total: "Todo el valor del servicio",
+  tarifa_basica: "Tarifa básica",
+  valor_a_convenir: "Servicios a convenir (rescate)",
+  concepto: "Un trabajo adicional",
+};
+const comoSePaga = (f) =>
+  f.forma === "porcentaje" ? `${formatoNumero(f.valor)} %` : f.forma === "fijo_servicio" ? `${formatoMoneda(f.valor)} fijo por servicio` : "No se paga";
