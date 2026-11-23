@@ -25,6 +25,10 @@ const TurnoModel = require("../models/turno.model");
 const CatalogosModel = require("../models/catalogos.model");
 const BitacoraModel = require("../models/bitacora.model");
 const { calcularValores } = require("./tarifa.service");
+const BolsaKm = require("./bolsaKm.service");
+
+// Fecha "YYYY-MM-DD" → "YYYY-MM" (mes de la bolsa de km)
+const mesDe = (fecha) => String(fecha).slice(0, 7);
 const { errorNegocio } = require("../utils/errores");
 const { diferencias } = require("../utils/diferencias");
 
@@ -173,6 +177,7 @@ const ServicioService = {
 
   async finalizar({ operadorId, servicioId, datos }) {
     return withTransaction(async (client) => {
+      await BolsaKm.bloquearSiAplica(client, servicioId); // clientes por bolsa de km
       // FOR UPDATE: bloquea la fila; dos "finalizar" simultáneos no pueden pasar
       const actual = await obtenerParaOperador(client, servicioId, operadorId);
 
@@ -202,6 +207,9 @@ const ServicioService = {
           conceptos: datos.conceptos,
           finServicio: datos.fin_servicio, // define el recargo nocturno automático
           soloOperador: true,
+          kmVacio: actual.km_vacio,
+          servicioId,
+          fueraDisponibilidad: actual.fuera_disponibilidad,
         },
         { client },
       );
@@ -219,9 +227,13 @@ const ServicioService = {
         valor_tarifa_basica: valores.valor_tarifa_basica,
         valor_conceptos: valores.valor_conceptos,
         valor_calculado: valores.valor_calculado,
+        tarifa_bolsa_id: valores.tarifa_bolsa_id,
+        bolsa_km_mes: valores.bolsa_km_mes,
         estado: "finalizado",
       });
       await ServicioModel.insertarConceptos(client, servicioId, valores.conceptos);
+      // Bolsa de km: los demás servicios del mes pueden cambiar de valor
+      await BolsaKm.recalcularMes(client, { clienteId: actual.cliente_id, fecha: actual.fecha_servicio, excluirId: servicioId, usuarioId: operadorId });
 
       const servicio = await ServicioModel.obtenerPorId(servicioId, { client });
       await BitacoraModel.registrar(client, {
@@ -254,6 +266,7 @@ const ServicioService = {
       throw errorNegocio(422, "MOTIVO_OBLIGATORIO", "Para anular un servicio debe escribir el motivo");
     }
     return withTransaction(async (client) => {
+      await BolsaKm.bloquearSiAplica(client, id);
       const actual = await ServicioModel.obtenerPorId(id, { client, bloquear: true });
       if (!actual) throw errorNegocio(404, "SERVICIO_NO_EXISTE", "El servicio no existe");
       validarTransicion(actual.estado, nuevoEstado);
@@ -281,6 +294,10 @@ const ServicioService = {
         nuevos: reabrir ? { estado: nuevoEstado, valor_aprobado: null, aprobado_por: null, aprobado_en: null } : { estado: nuevoEstado },
         motivo,
       });
+      // Bolsa de km: anular saca sus km del mes; reabrir lo vuelve a recalcular
+      if (await BolsaKm.recalcularMes(client, { clienteId: actual.cliente_id, fecha: actual.fecha_servicio, usuarioId })) {
+        return ServicioModel.obtenerPorId(id, { client });
+      }
       return actualizado;
     });
   },
@@ -342,6 +359,7 @@ const ServicioService = {
    */
   async corregir({ id, usuarioId, cambios, motivo }) {
     return withTransaction(async (client) => {
+      await BolsaKm.bloquearSiAplica(client, id);
       const actual = await ServicioModel.obtenerPorId(id, { client, bloquear: true });
       if (!actual) throw errorNegocio(404, "SERVICIO_NO_EXISTE", "El servicio no existe");
       if (["aprobado", "anulado"].includes(actual.estado)) {
@@ -398,6 +416,9 @@ const ServicioService = {
             kmServicio: final.km_servicio,
             conceptos: conceptos ?? conceptosAntes.map((c) => ({ concepto_id: c.concepto_id, cantidad: c.cantidad })),
             finServicio: final.fin_servicio, // si cambia la hora de fin, el recargo se recalcula
+            kmVacio: final.km_vacio,
+            servicioId: id,
+            fueraDisponibilidad: final.fuera_disponibilidad,
           },
           { client },
         );
@@ -407,12 +428,19 @@ const ServicioService = {
           valor_tarifa_basica: valores.valor_tarifa_basica,
           valor_conceptos: valores.valor_conceptos,
           valor_calculado: valores.valor_calculado,
+          tarifa_bolsa_id: valores.tarifa_bolsa_id,
+          bolsa_km_mes: valores.bolsa_km_mes,
         });
         await ServicioModel.reemplazarConceptos(client, id, valores.conceptos);
         conceptosDespues = valores.conceptos;
       }
 
       await ServicioModel.corregir(client, id, datos);
+      // Bolsa de km: recalcular el mes del servicio (y el nuevo, si cambió de mes o de cliente)
+      await BolsaKm.recalcularMes(client, { clienteId: actual.cliente_id, fecha: actual.fecha_servicio, excluirId: id, usuarioId });
+      if (final.cliente_id !== actual.cliente_id || mesDe(final.fecha_servicio) !== mesDe(actual.fecha_servicio)) {
+        await BolsaKm.recalcularMes(client, { clienteId: final.cliente_id, fecha: final.fecha_servicio, excluirId: id, usuarioId });
+      }
       const corregido = await ServicioModel.obtenerPorId(id, { client });
 
       const dif = diferencias(actual, corregido);

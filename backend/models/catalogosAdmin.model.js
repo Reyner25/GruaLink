@@ -6,7 +6,7 @@ const { crearModeloCrud } = require("./crud.model");
 
 const ClienteModel = crearModeloCrud({
   tabla: "clientes",
-  columnas: ["razon_social", "nit", "nombre_comercial", "telefono", "email", "direccion", "recargo_nocturno_desde", "activo"],
+  columnas: ["razon_social", "nit", "nombre_comercial", "telefono", "email", "direccion", "recargo_nocturno_desde", "modalidad_cobro", "activo"],
   orden: "COALESCE(nombre_comercial, razon_social)",
 });
 

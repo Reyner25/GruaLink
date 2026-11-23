@@ -37,6 +37,8 @@ const camposCliente = (opcional) => [
     .customSanitizer((v) => (typeof v === "string" ? v.trim() || null : v))
     .custom((v) => v === null || (typeof v === "string" && /^([01]\d|2[0-3]):[0-5]\d$/.test(v)))
     .withMessage("Hora inválida (formato HH:MM, ej. 19:00)"),
+  // Cómo se cobra: por servicio (tarifas normales) o por bolsa de km mensual (Suma)
+  body("modalidad_cobro").optional({ values: "undefined" }).isIn(["por_servicio", "bolsa_km_mensual"]).withMessage("Modalidad de cobro inválida"),
   c.booleano("activo", { opcional: true }),
 ];
 

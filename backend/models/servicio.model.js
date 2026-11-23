@@ -20,7 +20,13 @@ const COLUMNAS_FINALIZAR = [
   "inicio_servicio", "fin_servicio", "km_vacio", "km_servicio", "km_facturables",
   "entregado_sin_novedad", "recibe_nombre", "recibe_documento",
   "observaciones_entrega", "tarifa_id", "valor_tarifa_basica", "valor_conceptos",
-  "valor_calculado", "estado",
+  "valor_calculado", "tarifa_bolsa_id", "bolsa_km_mes", "estado",
+];
+
+// Valores recalculados (lo que cambia cuando se recalcula la bolsa de km del mes)
+const COLUMNAS_VALORES = [
+  "km_facturables", "tarifa_id", "tarifa_bolsa_id", "bolsa_km_mes",
+  "valor_tarifa_basica", "valor_conceptos", "valor_calculado",
 ];
 
 // Columnas que el ADMINISTRADOR puede cambiar en una corrección autorizada
@@ -31,6 +37,7 @@ const COLUMNAS_CORREGIR = [
   "origen", "destino", "es_rescate", "km_vacio", "km_servicio", "km_facturables",
   "entregado_sin_novedad", "recibe_nombre", "recibe_documento", "observaciones",
   "observaciones_entrega", "tarifa_id", "valor_tarifa_basica", "valor_conceptos", "valor_calculado",
+  "fuera_disponibilidad", "tarifa_bolsa_id", "bolsa_km_mes",
 ];
 
 // Columnas que se escriben al APROBAR
@@ -45,9 +52,14 @@ const SELECT_DETALLE = `
          g.placa AS grua_placa, g.numero_interno AS grua_numero,
          -- Para "Otro" se muestra lo que escribió el operador (ej. "Volqueta")
          COALESCE(s.tipo_vehiculo_otro, tv.nombre) AS tipo_vehiculo, ts.nombre AS tipo_servicio,
-         u.nombre AS operador_nombre
+         u.nombre AS operador_nombre,
+         c.modalidad_cobro AS cliente_modalidad_cobro,
+         -- Bolsa de km (Suma): celda con la que se calculó
+         tb.bolsa_km_desde AS bolsa_columna_desde, tb.bolsa_km_hasta AS bolsa_columna_hasta,
+         tb.forma AS bolsa_forma, tb.valor AS bolsa_valor
   FROM servicios s
   JOIN clientes c ON c.id = s.cliente_id
+  LEFT JOIN tarifas_bolsa_km tb ON tb.id = s.tarifa_bolsa_id
   JOIN gruas g ON g.id = s.grua_id
   JOIN tipos_vehiculo tv ON tv.id = s.tipo_vehiculo_id
   LEFT JOIN tipos_servicio ts ON ts.id = s.tipo_servicio_id
@@ -97,6 +109,11 @@ const ServicioModel = {
 
   corregir(client, id, datos) {
     return this.actualizarColumnas(client, id, datos, COLUMNAS_CORREGIR);
+  },
+
+  // Guarda solo los valores recalculados (recálculo de la bolsa de km del mes)
+  async actualizarValores(client, id, valores) {
+    return this.actualizarColumnas(client, id, valores, COLUMNAS_VALORES);
   },
 
   aprobar(client, id, datos) {

@@ -55,7 +55,51 @@ const CLIENTES = [
   ["SISTEMA INTEGRADO DE OPERACION DE TRANSPORTE SI18 - NORTE S.A.S", "901230629", "SI18 - NORTE"],
   ["SISTEMA INTEGRADO DE OPERACIÓN DE TRANSPORTE SI18 - CALLE 80 S.A.S", "901230687", "SI18 - CALLE 80"],
   ["SISTEMA INTEGRADO DE OPERACIÓN DE TRANSPORTE SI18 - SUBA S.A.S", "901230668", "SI18 - SUBA"],
+  ["ORGANIZACION SUMA SAS", "900364615", "SUMA"],
 ];
+
+/**
+ * SUMA 2026: cobro por BOLSA DE KILOMETRAJE MENSUAL (archivo "202611 Tarifa
+ * de Suma"). Ver docs/PLAN-SUMA.md.
+ *  - Columnas: km de todos los servicios del mes (servicio + vacío).
+ *    PROVISIONAL: menos de 600 km usa la columna 600–900 y más de 2.400 la
+ *    2100–2400; el límite superior de cada columna queda incluido.
+ *  - Filas: km del servicio (servicio + vacío). < 10 km = km × $/km;
+ *    10,01 a 95 km = valor fijo; > 95 km = a convenir.
+ */
+const BOLSA_SUMA = {
+  nit: "900364615",
+  columnas: [
+    [0, 900], // 600–900 (y menos)
+    [900.01, 1200],
+    [1200.01, 1500],
+    [1500.01, 1800],
+    [1800.01, 2100],
+    [2100.01, null], // 2100–2400 (y más)
+  ],
+  // $/km del rango < 10 km, por columna (de menor a mayor bolsa)
+  porKmMenor10: [51548, 34365, 26296, 25774, 25657, 25322],
+  // $/servicio de 10,01 a 95 km: una fila por rango de 5 km, por columna
+  fijos: [
+    [433005, 406683, 390889, 381677, 377728, 372463], // 10,01–15
+    [510656, 471173, 447482, 434322, 427741, 421160], // 15,01–20
+    [589624, 543560, 515921, 500128, 492231, 484334], // 20,01–25
+    [672540, 617263, 584360, 565934, 556721, 547509], // 25,01–30
+    [759405, 693598, 654114, 631740, 621212, 609366], // 30,01–35
+    [838372, 765985, 722553, 697546, 684385, 672540], // 35,01–40
+    [929184, 843636, 792308, 763353, 748876, 734399], // 40,01–45
+    [994991, 902862, 847585, 815998, 800205, 784411], // 45,01–50
+    [1064746, 963404, 902862, 868643, 851533, 834424], // 50,01–55
+    [1138448, 1026578, 959455, 921287, 902862, 883121], // 55,01–60
+    [1204255, 1085803, 1014732, 973933, 952875, 933133], // 60,01–65
+    [1281906, 1150294, 1071326, 1026578, 1004204, 981829], // 65,01–70
+    [1347712, 1209519, 1126604, 1079223, 1055533, 1031843], // 70,01–75
+    [1417468, 1270061, 1181881, 1131868, 1106862, 1081856], // 75,01–80
+    [1491170, 1333235, 1238475, 1184513, 1158190, 1130551], // 80,01–85
+    [1556976, 1392461, 1293752, 1237158, 1208204, 1180565], // 85,01–90
+    [1634628, 1456951, 1350345, 1289803, 1251635, 1229261], // 90,01–95
+  ],
+};
 
 const VIGENCIA_2026 = { desde: "2026-01-01", hasta: "2026-12-31" };
 
@@ -332,10 +376,46 @@ async function crearTarifas(client) {
     }
   }
   console.log(`✔ Tarifas 2026: ${tarifas} tarifa(s) y ${precios} precio(s) de conceptos nuevos (lo que ya existía no se duplicó)`);
+  await crearBolsaSuma(client);
   if (DIFERENCIAS.length) {
     console.log(`\n⚠ ${DIFERENCIAS.length} valor(es) de la base NO coinciden con el archivo (no se cambiaron; revíselos en el panel → Tarifas):`);
     DIFERENCIAS.forEach((d) => console.log(`  - ${d}`));
   }
+}
+
+/**
+ * Tabla de la bolsa de km de Suma (6 columnas × 19 filas). Se carga solo si
+ * Suma aún no tiene tabla para 2026 (no reemplaza una existente).
+ */
+async function crearBolsaSuma(client) {
+  const clienteId = await idPorNombre(client, "clientes", "nit", BOLSA_SUMA.nit);
+  await client.query("UPDATE clientes SET modalidad_cobro = 'bolsa_km_mensual' WHERE id = $1", [clienteId]);
+
+  const { rows } = await client.query(
+    "SELECT count(*)::int AS n FROM tarifas_bolsa_km WHERE cliente_id = $1 AND vigente_desde = $2",
+    [clienteId, VIGENCIA_2026.desde],
+  );
+  if (rows[0].n > 0) {
+    console.log(`✔ Bolsa de km de Suma: ya existe (${rows[0].n} celdas); no se cambió`);
+    return;
+  }
+  let celdas = 0;
+  const insertar = async ([bolsaDesde, bolsaHasta], kmDesde, kmHasta, forma, valor) => {
+    await client.query(
+      `INSERT INTO tarifas_bolsa_km (cliente_id, bolsa_km_desde, bolsa_km_hasta, km_desde, km_hasta, forma, valor, vigente_desde, vigente_hasta)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+      [clienteId, bolsaDesde, bolsaHasta, kmDesde, kmHasta, forma, valor, VIGENCIA_2026.desde, VIGENCIA_2026.hasta],
+    );
+    celdas++;
+  };
+  for (const [i, columna] of BOLSA_SUMA.columnas.entries()) {
+    await insertar(columna, 0, 10, "por_km", BOLSA_SUMA.porKmMenor10[i]); // < 10 km: según distancia
+    for (const [f, fila] of BOLSA_SUMA.fijos.entries()) {
+      await insertar(columna, 10.01 + 5 * f, 15 + 5 * f, "fijo", fila[i]);
+    }
+    await insertar(columna, 95.01, null, "a_convenir", null); // > 95 km
+  }
+  console.log(`✔ Bolsa de km de Suma: ${celdas} celdas cargadas`);
 }
 
 // --solo-catalogos (npm run datos-iniciales): catálogos y tarifas SIN usuarios de prueba.

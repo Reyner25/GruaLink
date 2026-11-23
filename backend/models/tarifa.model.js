@@ -29,6 +29,70 @@ const TarifaModel = {
     return rows;
   },
 
+  // ---------- Bolsa de kilometraje mensual (Suma) ----------
+
+  async modalidadCliente(clienteId, { client = pool } = {}) {
+    const { rows } = await client.query("SELECT modalidad_cobro FROM clientes WHERE id = $1", [clienteId]);
+    return rows[0]?.modalidad_cobro || "por_servicio";
+  },
+
+  /**
+   * Bloqueo de la bolsa de un cliente en un mes: mientras una transacción
+   * recalcula ese mes, otra que también lo toque espera (se libera al
+   * terminar la transacción). Evita dos cálculos simultáneos con totales distintos.
+   */
+  async bloquearBolsaMes(client, clienteId, fecha) {
+    await client.query("SELECT pg_advisory_xact_lock(hashtext('bolsa_km:' || $1::text || ':' || to_char($2::date, 'YYYY-MM')))", [
+      clienteId,
+      fecha,
+    ]);
+  },
+
+  /**
+   * Km de la bolsa del mes: servicio + vacío de los servicios del cliente en
+   * ese mes calendario que entran en la bolsa (no anulados, dentro de la
+   * disponibilidad, tipo de servicio de bolsa). excluirId: el servicio que se
+   * está calculando (se suman aparte sus km nuevos).
+   */
+  async kmBolsaMes({ clienteId, fecha, excluirId = null }, { client = pool } = {}) {
+    const { rows } = await client.query(
+      `SELECT COALESCE(sum(s.km_servicio + s.km_vacio), 0)::numeric AS km
+       FROM servicios s
+       JOIN tipos_servicio ts ON ts.id = s.tipo_servicio_id
+       WHERE s.cliente_id = $1
+         AND date_trunc('month', s.fecha_servicio) = date_trunc('month', $2::date)
+         AND s.estado <> 'anulado' AND NOT s.fuera_disponibilidad AND ts.usa_bolsa_km
+         AND s.id IS DISTINCT FROM $3`,
+      [clienteId, fecha, excluirId],
+    );
+    return Number(rows[0].km);
+  },
+
+  // Celda de la tabla: columna por la bolsa del mes, fila por los km del servicio
+  async celdaBolsa({ clienteId, fecha, kmMes, km }, { client = pool } = {}) {
+    const { rows } = await client.query(
+      `SELECT id, bolsa_km_desde, bolsa_km_hasta, km_desde, km_hasta, forma, valor
+       FROM tarifas_bolsa_km
+       WHERE cliente_id = $1
+         AND vigente_desde <= $2 AND (vigente_hasta IS NULL OR vigente_hasta >= $2)
+         AND bolsa_km_desde <= $3 AND (bolsa_km_hasta IS NULL OR bolsa_km_hasta >= $3)
+         AND km_desde <= $4 AND (km_hasta IS NULL OR km_hasta >= $4)`,
+      [clienteId, fecha, kmMes, km],
+    );
+    return rows[0] || null;
+  },
+
+  // Columnas (rangos de bolsa) vigentes del cliente, para mostrar cuánto falta a la siguiente
+  async columnasBolsa({ clienteId, fecha }, { client = pool } = {}) {
+    const { rows } = await client.query(
+      `SELECT DISTINCT bolsa_km_desde, bolsa_km_hasta FROM tarifas_bolsa_km
+       WHERE cliente_id = $1 AND vigente_desde <= $2 AND (vigente_hasta IS NULL OR vigente_hasta >= $2)
+       ORDER BY bolsa_km_desde`,
+      [clienteId, fecha],
+    );
+    return rows;
+  },
+
   /**
    * Datos para el recargo nocturno automático: el concepto marcado como
    * recargo (si existe y está activo) y la hora de corte propia del cliente

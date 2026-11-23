@@ -24,6 +24,22 @@ export async function promedioGruas(filtros) {
   return data;
 }
 
+// ---------- Bolsa de km mensual (Suma) ----------
+export async function clientesConBolsa() {
+  const { data } = await api.get("/bolsa-km/clientes");
+  return data.clientes;
+}
+
+export async function bolsaKmMes(clienteId, mes) {
+  const { data } = await api.get("/bolsa-km", { params: { cliente_id: clienteId, mes } });
+  return data;
+}
+
+export async function recalcularBolsaKm(clienteId, mes) {
+  const { data } = await api.post("/bolsa-km/recalcular", { cliente_id: clienteId, mes });
+  return data;
+}
+
 // ---------- Servicios ----------
 export async function listarServiciosAdmin(filtros) {
   const { data } = await api.get("/servicios", { params: limpiar(filtros) });

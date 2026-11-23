@@ -462,6 +462,82 @@ test("CAPITALBUS: precio propio de conceptos; el administrador agrega 1,5 h de s
   assert.strictEqual(admin.datos.servicio.valor_conceptos, 204250);
 });
 
+test("Suma: bolsa de km mensual (columna por km del mes, fila por km del servicio)", async () => {
+  const suma = await idDe("SELECT id FROM clientes WHERE nit = $1", "900364615");
+  const nuevo = async (extra = {}) => {
+    const c = await api("POST", "/api/servicios", { token: tokens.op1, body: datosServicio({ cliente_id: suma, ...extra }) });
+    assert.strictEqual(c.status, 201, JSON.stringify(c.datos));
+    return c.datos.servicio.id;
+  };
+  const finalizar = (id, extra) => api("POST", `/api/servicios/${id}/finalizar`, { token: tokens.op1, body: datosFinalizar(extra) });
+  const corregir = async (id, body) => {
+    const r = await api("POST", `/api/servicios/${id}/corregir`, { token: tokens.admin, body: { motivo: "Km reales del GPS", ...body } });
+    assert.strictEqual(r.status, 200, JSON.stringify(r.datos));
+  };
+  const ver = async (id) => (await api("GET", `/api/servicios/${id}`, { token: tokens.admin })).datos;
+  const valor = async (id) => (await ver(id)).servicio.valor_calculado;
+
+  // S1: 18 km en servicio + 2 en vacío = 20 km (fila 15,01–20); bolsa 20 km → columna 600–900
+  const s1 = await nuevo();
+  await finalizar(s1);
+  await corregir(s1, { km_servicio: 18, km_vacio: 2 });
+  let d = await ver(s1);
+  assert.strictEqual(d.servicio.valor_calculado, 510656);
+  assert.strictEqual(d.servicio.bolsa_km_mes, 20);
+  assert.strictEqual(d.servicio.km_facturables, 20); // servicio + vacío
+
+  // S2: 1.000 km (> 95 km → a convenir); la bolsa sube a 1.020 → columna 900–1200 y S1 se recalcula
+  const s2 = await nuevo();
+  await finalizar(s2);
+  await corregir(s2, { km_servicio: 1000 });
+  assert.strictEqual(await valor(s2), null);
+  assert.strictEqual(await valor(s1), 471173);
+
+  // S3: 8 km (< 10 km → según distancia: 8 × $34.365); el cardán se registra sin cobro
+  const s3 = await nuevo();
+  await finalizar(s3, { conceptos: [{ concepto_id: ids.cardan, cantidad: 1 }] });
+  await corregir(s3, { km_servicio: 8 });
+  d = await ver(s3);
+  assert.strictEqual(d.servicio.valor_calculado, 274920);
+  assert.strictEqual(d.servicio.valor_conceptos, 0);
+  assert.strictEqual(d.conceptos[0].total, 0);
+
+  // S4 fuera de la disponibilidad: tarifa general (articulado 393.000) + cardán general (92.400); sus km NO suman a la bolsa
+  const s4 = await nuevo();
+  await finalizar(s4, { conceptos: [{ concepto_id: ids.cardan, cantidad: 1 }] });
+  await corregir(s4, { km_servicio: 900, fuera_disponibilidad: true });
+  d = await ver(s4);
+  assert.strictEqual(d.servicio.valor_calculado, 485400);
+  assert.strictEqual(d.servicio.tarifa_bolsa_id, null);
+  assert.strictEqual(await valor(s1), 471173); // la bolsa sigue en 1.028 km
+
+  // Anular S2: la bolsa baja a 28 km → columna 600–900 otra vez
+  await api("PATCH", `/api/servicios/${s2}/estado`, { token: tokens.admin, body: { estado: "anulado", motivo: "Duplicado" } });
+  assert.strictEqual(await valor(s1), 510656);
+  assert.strictEqual(await valor(s3), 412384); // 8 × 51.548
+
+  // Un aprobado conserva su valor aunque la bolsa cambie
+  await api("POST", `/api/servicios/${s1}/aprobar`, { token: tokens.admin, body: {} });
+  await corregir(s4, { fuera_disponibilidad: false }); // S4 entra a la bolsa: 928 km → columna 900–1200
+  assert.strictEqual((await ver(s1)).servicio.valor_aprobado, 510656);
+  assert.strictEqual(await valor(s3), 274920);
+
+  // Resumen de la bolsa del mes
+  const r = await api("GET", `/api/bolsa-km?cliente_id=${suma}&mes=${ids.hoy.slice(0, 7)}`, { token: tokens.admin });
+  assert.strictEqual(r.status, 200, JSON.stringify(r.datos));
+  assert.strictEqual(r.datos.km_mes, 928);
+  assert.deepStrictEqual(r.datos.columna, { desde: 900.01, hasta: 1200 });
+  assert.strictEqual(r.datos.siguiente.faltan_km, 272.01);
+  assert.strictEqual(r.datos.servicios.length, 4);
+
+  // Cada recálculo automático quedó en la bitácora
+  const { rows } = await pool.query(
+    "SELECT count(*)::int AS n FROM bitacora WHERE entidad = 'servicios' AND registro_id = $1 AND motivo LIKE 'Recálculo automático%'",
+    [s3],
+  );
+  assert.ok(rows[0].n >= 2);
+});
+
 test("rescate (a convenir): se marca por el tipo de servicio y queda para el administrador", async () => {
   const creado = await api("POST", "/api/servicios", {
     token: tokens.op1,

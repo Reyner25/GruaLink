@@ -35,5 +35,6 @@ router.use("/precios-concepto", tarifaRoutes.preciosConcepto);
 router.use("/dashboard", reportes.dashboard);
 router.use("/bitacora", reportes.bitacora);
 router.use("/exportar", exportarRoutes); // descargas en Excel
+router.use("/bolsa-km", require("./bolsaKm.routes")); // bolsa de kilometraje mensual (Suma)
 
 module.exports = router;

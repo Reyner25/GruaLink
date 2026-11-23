@@ -132,6 +132,9 @@ router.get("/servicios", ...filtrosValidos, async (req, res, next) => {
             { titulo: "Km servicio", campo: "km_servicio", formato: "numero", ancho: 9 },
             { titulo: "Km total", campo: "km_total", formato: "numero", ancho: 9 },
             { titulo: "Km facturables", campo: "km_facturables", formato: "numero", ancho: 10 },
+            // Clientes por bolsa de km (Suma)
+            { titulo: "Fuera de disponibilidad", campo: "fuera_disponibilidad", formato: "si_no", ancho: 11 },
+            { titulo: "Bolsa km del mes", campo: "bolsa_km_mes", formato: "numero", ancho: 11 },
             { titulo: "Tarifa básica", campo: "valor_tarifa_basica", formato: "moneda", ancho: 13 },
             // Trabajos adicionales: dos columnas (cantidad y valor) por cada concepto usado
             ...columnasConceptos,

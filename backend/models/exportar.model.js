@@ -34,6 +34,7 @@ const ExportarModel = {
               round(EXTRACT(EPOCH FROM (s.fin_servicio - s.inicio_servicio)) / 60)::int AS duracion_min,
               s.origen, s.destino,
               s.km_vacio, s.km_servicio, s.km_vacio + s.km_servicio AS km_total, s.km_facturables,
+              s.fuera_disponibilidad, s.bolsa_km_mes,
               s.valor_tarifa_basica, s.valor_conceptos, s.valor_calculado, s.valor_aprobado,
               aprob.nombre AS aprobado_por, ${hora("s.aprobado_en")} AS aprobado_en,
               s.entregado_sin_novedad, s.recibe_nombre, s.recibe_documento,

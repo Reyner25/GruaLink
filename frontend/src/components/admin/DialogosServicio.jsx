@@ -18,8 +18,10 @@ import {
   DialogActions,
   DialogContent,
   DialogTitle,
+  FormControlLabel,
   InputAdornment,
   Stack,
+  Switch,
   Table,
   TableBody,
   TableCell,
@@ -29,7 +31,7 @@ import {
   Typography,
 } from "@mui/material";
 import { aprobarServicio, corregirServicio, cambiarEstadoServicio } from "../../api/admin.api";
-import { formatoMoneda, mensajeError, UNIDADES_COBRO } from "../../utils/formato";
+import { formatoMoneda, hoy, mensajeError, UNIDADES_COBRO } from "../../utils/formato";
 
 const aNumero = (v) => Number(String(v).replace(",", "."));
 const numeroValido = (v, { min = 0, max = 9999 } = {}) => v !== "" && !Number.isNaN(aNumero(v)) && aNumero(v) >= min && aNumero(v) <= max;
@@ -40,6 +42,8 @@ export function DialogoCorregir({ abierto, onCerrar, onListo, servicio, concepto
   // El recargo nocturno es automático (según la hora de fin): no se marca a mano
   const conceptosActuales = todosActuales.filter((c) => !c.es_recargo_nocturno);
   const catalogoConceptos = todoElCatalogo.filter((c) => !c.es_recargo_nocturno);
+  // Clientes por bolsa de km (Suma): el administrador indica si va fuera de la disponibilidad
+  const porBolsa = servicio.cliente_modalidad_cobro === "bolsa_km_mensual";
   const inicial = () => ({
     km_vacio: String(servicio.km_vacio ?? 0),
     km_servicio: String(servicio.km_servicio ?? 0),
@@ -48,6 +52,7 @@ export function DialogoCorregir({ abierto, onCerrar, onListo, servicio, concepto
     origen: servicio.origen || "",
     destino: servicio.destino || "",
     conceptos: Object.fromEntries(conceptosActuales.map((c) => [c.concepto_id, String(c.cantidad)])),
+    fuera_disponibilidad: Boolean(servicio.fuera_disponibilidad),
     motivo: "",
   });
   const [form, setForm] = useState(inicial);
@@ -71,6 +76,7 @@ export function DialogoCorregir({ abierto, onCerrar, onListo, servicio, concepto
     for (const campo of ["placa_vehiculo", "numero_vehiculo", "origen", "destino"]) {
       if (form[campo].trim() !== (servicio[campo] || "")) cambios[campo] = form[campo].trim() || null;
     }
+    if (porBolsa && form.fuera_disponibilidad !== Boolean(servicio.fuera_disponibilidad)) cambios.fuera_disponibilidad = form.fuera_disponibilidad;
     if (cerrado) {
       const nuevos = Object.entries(form.conceptos).map(([id, cant]) => ({ concepto_id: Number(id), cantidad: aNumero(cant) }));
       const antes = conceptosActuales.map((c) => `${c.concepto_id}:${Number(c.cantidad)}`).sort().join();
@@ -126,8 +132,22 @@ export function DialogoCorregir({ abierto, onCerrar, onListo, servicio, concepto
             </Stack>
             <Typography variant="caption" color="text.secondary">
               Los km en servicio determinan el rango de tarifa en clientes que cobran por distancia (ej. La Rolita).
+              {porBolsa && " En este cliente (bolsa de km) cuentan servicio + vacío, y suman a la bolsa del mes."}
             </Typography>
           </Box>
+
+          {porBolsa && (
+            <Box>
+              <FormControlLabel
+                control={<Switch checked={form.fuera_disponibilidad} onChange={(e) => cambiar("fuera_disponibilidad", e.target.checked)} />}
+                label="Fuera de la disponibilidad"
+              />
+              <Typography variant="caption" color="text.secondary" component="div">
+                Fuera de la disponibilidad: se cobra con la tarifa de Clientes generales, con trabajos adicionales y recargo nocturno, y sus km no suman a la
+                bolsa. Dentro: valor por la bolsa de km del mes; los adicionales se registran sin cobro.
+              </Typography>
+            </Box>
+          )}
 
           {cerrado ? (
             <Box>
@@ -266,6 +286,11 @@ export function DialogoAprobar({ abierto, onCerrar, onListo, servicio }) {
           </Typography>
           {(Number(servicio.km_servicio) === 0 && Number(servicio.km_vacio) === 0) && (
             <Alert severity="warning">Este servicio no tiene kilómetros registrados. Si el cliente cobra por distancia, corríjalos antes de aprobar.</Alert>
+          )}
+          {servicio.tarifa_bolsa_id && String(servicio.fecha_servicio).slice(0, 7) >= hoy().slice(0, 7) && (
+            <Alert severity="warning">
+              Bolsa de km: el mes de este servicio aún no termina. Si se aprueba ahora, el valor queda fijo aunque la bolsa del mes cambie después.
+            </Alert>
           )}
           <TextField
             label="Valor aprobado *"

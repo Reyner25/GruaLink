@@ -152,7 +152,6 @@ function DialogoRegistro({ abierto, fila, campos, ruta, claveUno, titulo, textoN
           {visibles.map((c) => {
             const deshabilitado = c.deshabilitado?.(fila) || false;
             const comun = {
-              key: c.campo,
               label: `${c.etiqueta}${c.requerido ? " *" : ""}`,
               value: form[c.campo],
               onChange: (e) => cambiar(c.campo, e.target.value),
@@ -171,7 +170,7 @@ function DialogoRegistro({ abierto, fila, campos, ruta, claveUno, titulo, textoN
             }
             if (c.tipo === "select") {
               return (
-                <TextField select {...comun}>
+                <TextField key={c.campo} select {...comun}>
                   {(c.opciones || []).map((o) => (
                     <MenuItem key={String(o.valor)} value={String(o.valor)}>
                       {o.texto}
@@ -180,19 +179,20 @@ function DialogoRegistro({ abierto, fila, campos, ruta, claveUno, titulo, textoN
                 </TextField>
               );
             }
-            if (c.tipo === "fecha") return <TextField type="date" {...comun} slotProps={{ inputLabel: { shrink: true } }} />;
-            if (c.tipo === "hora") return <TextField type="time" {...comun} slotProps={{ inputLabel: { shrink: true } }} />;
+            if (c.tipo === "fecha") return <TextField key={c.campo} type="date" {...comun} slotProps={{ inputLabel: { shrink: true } }} />;
+            if (c.tipo === "hora") return <TextField key={c.campo} type="time" {...comun} slotProps={{ inputLabel: { shrink: true } }} />;
             if (c.tipo === "dinero")
               return (
                 <TextField
+                  key={c.campo}
                   {...comun}
                   onChange={(e) => cambiar(c.campo, e.target.value.replace(/[^\d.,]/g, ""))}
                   slotProps={{ htmlInput: { inputMode: "numeric" }, input: { startAdornment: <InputAdornment position="start">$</InputAdornment> } }}
                 />
               );
             if (c.tipo === "numero")
-              return <TextField {...comun} onChange={(e) => cambiar(c.campo, e.target.value.replace(/[^\d.,]/g, ""))} slotProps={{ htmlInput: { inputMode: "decimal" } }} />;
-            return <TextField type={c.tipo === "password" ? "password" : c.tipo === "email" ? "email" : "text"} {...comun} />;
+              return <TextField key={c.campo} {...comun} onChange={(e) => cambiar(c.campo, e.target.value.replace(/[^\d.,]/g, ""))} slotProps={{ htmlInput: { inputMode: "decimal" } }} />;
+            return <TextField key={c.campo} type={c.tipo === "password" ? "password" : c.tipo === "email" ? "email" : "text"} {...comun} />;
           })}
           {editando && (
             <TextField label="Motivo del cambio (opcional)" value={motivo} onChange={(e) => setMotivo(e.target.value)} helperText="Queda registrado en la bitácora." />

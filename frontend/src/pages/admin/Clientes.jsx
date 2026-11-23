@@ -28,6 +28,7 @@ export default function Clientes() {
           { campo: "nit", titulo: "NIT" },
           { campo: "telefono", titulo: "Teléfono" },
           { campo: "email", titulo: "Correo" },
+          { campo: "modalidad_cobro", titulo: "Cobro", render: (f) => (f.modalidad_cobro === "bolsa_km_mensual" ? <Chip size="small" label="Bolsa de km" color="secondary" /> : "Por servicio") },
           { campo: "recargo_nocturno_desde", titulo: "Recargo nocturno", render: (f) => (f.recargo_nocturno_desde ? `desde ${f.recargo_nocturno_desde.slice(0, 5)}` : "20:40 (general)") },
           { campo: "activo", titulo: "Estado", render: activo },
         ]}
@@ -38,6 +39,18 @@ export default function Clientes() {
           { campo: "telefono", etiqueta: "Teléfono", tipo: "texto", nulable: true },
           { campo: "email", etiqueta: "Correo electrónico", tipo: "email", nulable: true },
           { campo: "direccion", etiqueta: "Dirección", tipo: "texto", nulable: true },
+          {
+            campo: "modalidad_cobro",
+            etiqueta: "Modalidad de cobro",
+            tipo: "select",
+            opcionesNumericas: false,
+            porDefecto: "por_servicio",
+            opciones: [
+              { valor: "por_servicio", texto: "Por servicio (tarifas normales)" },
+              { valor: "bolsa_km_mensual", texto: "Bolsa de km mensual (como Suma)" },
+            ],
+            ayuda: "Bolsa de km: el valor depende de los km de todos sus servicios del mes (tabla propia, ver Reportes → Bolsa de km)",
+          },
           {
             campo: "recargo_nocturno_desde",
             etiqueta: "Recargo nocturno desde",

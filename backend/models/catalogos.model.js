@@ -64,7 +64,7 @@ const CatalogosModel = {
 
   async tipoServicio(id, { client = pool } = {}) {
     const { rows } = await client.query(
-      "SELECT id, nombre, valor_a_convenir, es_rescate, activo FROM tipos_servicio WHERE id = $1",
+      "SELECT id, nombre, valor_a_convenir, es_rescate, usa_bolsa_km, activo FROM tipos_servicio WHERE id = $1",
       [id],
     );
     return rows[0] || null;

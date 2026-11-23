@@ -149,22 +149,80 @@ async function calcularConceptos({ conceptos = [], clienteId, fecha, soloOperado
 }
 
 /**
+ * BOLSA DE KILOMETRAJE MENSUAL (cliente Suma, docs/PLAN-SUMA.md).
+ * Servicio DENTRO de la disponibilidad:
+ *  - km del servicio = servicio + vacío (así lo dice la tabla de Suma).
+ *  - bolsa del mes = km de los demás servicios del mes + los de este.
+ *  - La celda (columna por bolsa, fila por km) da el valor: fijo, km × $/km
+ *    (< 10 km) o a convenir (> 95 km).
+ *  - Los trabajos adicionales se REGISTRAN pero no se cobran (valor 0) y no
+ *    hay recargo nocturno: solo se cobran fuera de la disponibilidad.
+ * Cuando cambian los km o el estado de un servicio del mes, los demás se
+ * recalculan (bolsaKm.service.js).
+ */
+async function calcularPorBolsa({ clienteId, fecha, kmServicio, kmVacio, conceptos, soloOperador, servicioId }, opciones) {
+  const client = opciones?.client;
+  if (client) await TarifaModel.bloquearBolsaMes(client, clienteId, fecha);
+  const km = redondear(Number(kmServicio || 0) + Number(kmVacio || 0));
+  const kmMes = redondear((await TarifaModel.kmBolsaMes({ clienteId, fecha, excluirId: servicioId }, opciones)) + km);
+  const celda = await TarifaModel.celdaBolsa({ clienteId, fecha, kmMes, km }, opciones);
+  if (!celda) {
+    throw errorNegocio(422, "TARIFA_BOLSA_NO_ENCONTRADA", "No hay tabla de bolsa de km vigente para este cliente y fecha. Avise al administrador.");
+  }
+
+  // Adicionales: se validan y registran, sin cobro
+  const registrados = await calcularConceptos({ conceptos, clienteId: null, fecha, soloOperador }, opciones);
+  const sinCobro = registrados.detalle.map((c) => ({ ...c, valor_unitario: 0, total: 0 }));
+
+  const valor =
+    celda.forma === "fijo" ? redondear(celda.valor) : celda.forma === "por_km" ? Math.round(Number(celda.valor) * km) : null;
+  return {
+    km_facturables: km,
+    tarifa_id: null,
+    tarifa_bolsa_id: celda.id,
+    bolsa_km_mes: kmMes,
+    valor_tarifa_basica: valor,
+    valor_conceptos: 0,
+    valor_calculado: valor, // null = a convenir (> 95 km)
+    requiere_valor_manual: valor === null,
+    conceptos: sinCobro,
+  };
+}
+
+/**
  * Calcula todos los valores de un servicio.
  * Devuelve lo que se guarda en la tabla servicios + el detalle de conceptos.
+ *
+ * Clientes por bolsa de km (Suma): los remolques dentro de la disponibilidad
+ * van por calcularPorBolsa; todo lo demás (fuera de la disponibilidad,
+ * servicio fallido) se cobra con la tarifa y los precios de CLIENTES GENERALES.
  */
 async function calcularValores(
-  { clienteId, tipoVehiculo, tipoServicio, fecha, kmServicio, conceptos, finServicio, soloOperador = false },
+  {
+    clienteId, tipoVehiculo, tipoServicio, fecha, kmServicio, kmVacio = 0, conceptos, finServicio,
+    soloOperador = false, servicioId = null, fueraDisponibilidad = false,
+  },
   opciones,
 ) {
+  const porBolsa = (await TarifaModel.modalidadCliente(clienteId, opciones)) === "bolsa_km_mensual";
+  if (porBolsa && !fueraDisponibilidad && tipoServicio.usa_bolsa_km && !tipoServicio.valor_a_convenir && !tipoVehiculo.es_otro) {
+    return calcularPorBolsa({ clienteId, fecha, kmServicio, kmVacio, conceptos, soloOperador, servicioId }, opciones);
+  }
+  // Cliente por bolsa, servicio que no va en la bolsa → tarifa general
+  const clienteTarifa = porBolsa ? null : clienteId;
+
   const km = kmFacturables({ kmServicio });
+  // La hora de corte del recargo es la del cliente; el precio, el de su tarifa
   const conRecargo = await aplicarRecargoNocturno({ conceptos, clienteId, finServicio }, opciones);
   const adicionales = await calcularConceptos(
-    { conceptos: conRecargo.conceptos, clienteId, fecha, soloOperador, automaticos: conRecargo.automaticos },
+    { conceptos: conRecargo.conceptos, clienteId: clienteTarifa, fecha, soloOperador, automaticos: conRecargo.automaticos },
     opciones,
   );
+  const sinBolsa = { tarifa_bolsa_id: null, bolsa_km_mes: null };
 
   if (tipoServicio.valor_a_convenir || tipoVehiculo.es_otro) {
     return {
+      ...sinBolsa,
       km_facturables: km,
       tarifa_id: null,
       valor_tarifa_basica: null,
@@ -176,10 +234,11 @@ async function calcularValores(
   }
 
   const tarifa = await seleccionarTarifa(
-    { clienteId, tipoVehiculoId: tipoVehiculo.id, tipoServicioId: tipoServicio.id, fecha, km },
+    { clienteId: clienteTarifa, tipoVehiculoId: tipoVehiculo.id, tipoServicioId: tipoServicio.id, fecha, km },
     opciones,
   );
   return {
+    ...sinBolsa,
     km_facturables: km,
     tarifa_id: tarifa.tarifaId,
     valor_tarifa_basica: tarifa.valor,
