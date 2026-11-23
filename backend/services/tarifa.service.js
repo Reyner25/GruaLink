@@ -157,15 +157,22 @@ async function calcularConceptos({ conceptos = [], clienteId, fecha, soloOperado
  *    (< 10 km) o a convenir (> 95 km).
  *  - Los trabajos adicionales se REGISTRAN pero no se cobran (valor 0) y no
  *    hay recargo nocturno: solo se cobran fuera de la disponibilidad.
- * Cuando cambian los km o el estado de un servicio del mes, los demás se
- * recalculan (bolsaKm.service.js).
+ *  - MES ABIERTO (23/11/2026): mientras no se sabe en qué bolsa va a caer el
+ *    mes, se usa la columna PROVISIONAL 1500–1800 km (bolsa_km_mes queda
+ *    vacío). Cuando el mes termina, el mantenimiento recalcula el mes con la
+ *    columna real (mantenimiento.service.js).
+ * Cuando cambian los km o el estado de un servicio de un mes cerrado, los
+ * demás se recalculan (bolsaKm.service.js).
  */
+const BOLSA_PROVISIONAL = { columna: "1500–1800", km: 1800 }; // km que cae en esa columna
+
 async function calcularPorBolsa({ clienteId, fecha, kmServicio, kmVacio, conceptos, soloOperador, servicioId }, opciones) {
   const client = opciones?.client;
   if (client) await TarifaModel.bloquearBolsaMes(client, clienteId, fecha);
   const km = redondear(Number(kmServicio || 0) + Number(kmVacio || 0));
-  const kmMes = redondear((await TarifaModel.kmBolsaMes({ clienteId, fecha, excluirId: servicioId }, opciones)) + km);
-  const celda = await TarifaModel.celdaBolsa({ clienteId, fecha, kmMes, km }, opciones);
+  const provisional = await TarifaModel.mesAbierto(fecha, opciones);
+  const kmMes = provisional ? null : redondear((await TarifaModel.kmBolsaMes({ clienteId, fecha, excluirId: servicioId }, opciones)) + km);
+  const celda = await TarifaModel.celdaBolsa({ clienteId, fecha, kmMes: provisional ? BOLSA_PROVISIONAL.km : kmMes, km }, opciones);
   if (!celda) {
     throw errorNegocio(422, "TARIFA_BOLSA_NO_ENCONTRADA", "No hay tabla de bolsa de km vigente para este cliente y fecha. Avise al administrador.");
   }
@@ -180,7 +187,7 @@ async function calcularPorBolsa({ clienteId, fecha, kmServicio, kmVacio, concept
     km_facturables: km,
     tarifa_id: null,
     tarifa_bolsa_id: celda.id,
-    bolsa_km_mes: kmMes,
+    bolsa_km_mes: kmMes, // null = columna provisional (mes abierto)
     valor_tarifa_basica: valor,
     valor_conceptos: 0,
     valor_calculado: valor, // null = a convenir (> 95 km)
@@ -249,4 +256,4 @@ async function calcularValores(
   };
 }
 
-module.exports = { calcularValores, seleccionarTarifa, calcularConceptos, kmFacturables, redondear, esNocturno, RECARGO_NOCTURNO };
+module.exports = { BOLSA_PROVISIONAL, calcularValores, seleccionarTarifa, calcularConceptos, kmFacturables, redondear, esNocturno, RECARGO_NOCTURNO };

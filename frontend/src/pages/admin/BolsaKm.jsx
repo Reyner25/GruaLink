@@ -4,7 +4,7 @@
  * Muestra, para un cliente y un mes: km acumulados, columna de la tabla que
  * se está aplicando, cuántos km faltan para la siguiente (más barata) y los
  * servicios del mes con su valor. Mientras el mes está abierto los valores
- * son PROVISIONALES: cada servicio nuevo puede cambiar la columna de todos.
+ * son PROVISIONALES (columna 1500–1800); al cerrar el mes se recalculan solos.
  * Ver docs/PLAN-SUMA.md.
  */
 import { useState } from "react";
@@ -50,7 +50,6 @@ export default function BolsaKm() {
   const clienteId = params.get("cliente_id") || (clientes.datos?.[0]?.id ? String(clientes.datos[0].id) : "");
   const mes = params.get("mes") || hoy().slice(0, 7);
   const bolsa = useCargar(() => (clienteId ? bolsaKmMes(clienteId, mes) : Promise.resolve(null)), [clienteId, mes]);
-  const mesAbierto = mes >= hoy().slice(0, 7);
 
   const cambiar = (campo, valor) => {
     const p = new URLSearchParams(params);
@@ -104,10 +103,10 @@ export default function BolsaKm() {
       {bolsa.error && <ErrorCarga mensaje={bolsa.error} onReintentar={bolsa.recargar} />}
       {d && (
         <Stack spacing={3}>
-          {mesAbierto && (
+          {d.provisional && (
             <Alert severity="warning">
-              Mes en curso: los valores son <b>provisionales</b>. Cada servicio nuevo suma km a la bolsa y puede cambiar la columna (y el valor) de todos los servicios
-              del mes que no estén aprobados. Conviene aprobar los servicios de este cliente cuando termine el mes.
+              Mes en curso: los servicios se calculan con la columna <b>provisional {d.columna_provisional} km</b>. Cuando termine el mes, el sistema los recalcula
+              solo con la columna real (la que indiquen los km acumulados). Conviene aprobar los servicios de este cliente después del cierre del mes.
             </Alert>
           )}
           <Grid container spacing={2}>
@@ -115,7 +114,13 @@ export default function BolsaKm() {
               <Indicador titulo="Km del mes (servicio + vacío)" valor={`${formatoNumero(d.km_mes)} km`} icono={<RouteIcon />} />
             </Grid>
             <Grid size={{ xs: 12, md: 4 }}>
-              <Indicador titulo="Columna aplicada" valor={rango(d.columna)} icono={<ViewColumnIcon />} color="secondary.main" />
+              <Indicador
+                titulo={d.provisional ? "Columna real hasta hoy" : "Columna aplicada"}
+                valor={rango(d.columna)}
+                detalle={d.provisional ? `Se cobra provisional: ${d.columna_provisional} km` : null}
+                icono={<ViewColumnIcon />}
+                color="secondary.main"
+              />
             </Grid>
             <Grid size={{ xs: 12, md: 4 }}>
               <Indicador

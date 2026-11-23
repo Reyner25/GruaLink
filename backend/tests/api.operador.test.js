@@ -477,35 +477,50 @@ test("Suma: bolsa de km mensual (columna por km del mes, fila por km del servici
   const ver = async (id) => (await api("GET", `/api/servicios/${id}`, { token: tokens.admin })).datos;
   const valor = async (id) => (await ver(id)).servicio.valor_calculado;
 
-  // S1: 18 km en servicio + 2 en vacío = 20 km (fila 15,01–20); bolsa 20 km → columna 600–900
+  const mesAnterior = (await pool.query("SELECT (date_trunc('month', current_date) - interval '1 month' + interval '14 days')::date::text AS d")).rows[0].d;
+
+  // ---- MES ABIERTO: columna provisional 1500–1800 ----
+  // S1: 18 km en servicio + 2 en vacío = 20 km (fila 15,01–20)
   const s1 = await nuevo();
   await finalizar(s1);
   await corregir(s1, { km_servicio: 18, km_vacio: 2 });
   let d = await ver(s1);
-  assert.strictEqual(d.servicio.valor_calculado, 510656);
-  assert.strictEqual(d.servicio.bolsa_km_mes, 20);
+  assert.strictEqual(d.servicio.valor_calculado, 434322); // columna provisional 1500–1800
+  assert.strictEqual(d.servicio.bolsa_km_mes, null); // null = provisional
   assert.strictEqual(d.servicio.km_facturables, 20); // servicio + vacío
 
-  // S2: 1.000 km (> 95 km → a convenir); la bolsa sube a 1.020 → columna 900–1200 y S1 se recalcula
-  const s2 = await nuevo();
-  await finalizar(s2);
-  await corregir(s2, { km_servicio: 1000 });
-  assert.strictEqual(await valor(s2), null);
-  assert.strictEqual(await valor(s1), 471173);
-
-  // S3: 8 km (< 10 km → según distancia: 8 × $34.365); el cardán se registra sin cobro
+  // S3: 8 km (< 10 km → según distancia: 8 × $25.774 provisional); el cardán se registra sin cobro
   const s3 = await nuevo();
   await finalizar(s3, { conceptos: [{ concepto_id: ids.cardan, cantidad: 1 }] });
   await corregir(s3, { km_servicio: 8 });
   d = await ver(s3);
-  assert.strictEqual(d.servicio.valor_calculado, 274920);
+  assert.strictEqual(d.servicio.valor_calculado, 206192);
   assert.strictEqual(d.servicio.valor_conceptos, 0);
   assert.strictEqual(d.conceptos[0].total, 0);
+
+  // ---- FIN DE MES: el mantenimiento recalcula con la columna real (bolsa 28 km → 600–900) ----
+  await pool.query("UPDATE servicios SET fecha_servicio = $1 WHERE id = ANY($2::int[])", [mesAnterior, [s1, s3]]);
+  const { cerrarMesesPendientes } = require("../services/bolsaKm.service");
+  assert.strictEqual(await cerrarMesesPendientes(), 2);
+  d = await ver(s1);
+  assert.strictEqual(d.servicio.valor_calculado, 510656);
+  assert.strictEqual(d.servicio.bolsa_km_mes, 28);
+  assert.strictEqual(await valor(s3), 412384); // 8 × 51.548
+  assert.strictEqual(await cerrarMesesPendientes(), 0); // ya no queda nada provisional
+
+  // ---- MES CERRADO: cada cambio recalcula el mes con la columna real ----
+  // S2: 1.000 km (> 95 km → a convenir); la bolsa sube a 1.028 → columna 900–1200 y S1 y S3 se recalculan
+  const s2 = await nuevo();
+  await finalizar(s2);
+  await corregir(s2, { fecha_servicio: mesAnterior, km_servicio: 1000 });
+  assert.strictEqual(await valor(s2), null);
+  assert.strictEqual(await valor(s1), 471173);
+  assert.strictEqual(await valor(s3), 274920); // 8 × 34.365
 
   // S4 fuera de la disponibilidad: tarifa general (articulado 393.000) + cardán general (92.400); sus km NO suman a la bolsa
   const s4 = await nuevo();
   await finalizar(s4, { conceptos: [{ concepto_id: ids.cardan, cantidad: 1 }] });
-  await corregir(s4, { km_servicio: 900, fuera_disponibilidad: true });
+  await corregir(s4, { fecha_servicio: mesAnterior, km_servicio: 900, fuera_disponibilidad: true });
   d = await ver(s4);
   assert.strictEqual(d.servicio.valor_calculado, 485400);
   assert.strictEqual(d.servicio.tarifa_bolsa_id, null);
@@ -522,9 +537,12 @@ test("Suma: bolsa de km mensual (columna por km del mes, fila por km del servici
   assert.strictEqual((await ver(s1)).servicio.valor_aprobado, 510656);
   assert.strictEqual(await valor(s3), 274920);
 
-  // Resumen de la bolsa del mes
-  const r = await api("GET", `/api/bolsa-km?cliente_id=${suma}&mes=${ids.hoy.slice(0, 7)}`, { token: tokens.admin });
+  // Resumen de la bolsa del mes cerrado y del mes abierto
+  const abierto = await api("GET", `/api/bolsa-km?cliente_id=${suma}&mes=${ids.hoy.slice(0, 7)}`, { token: tokens.admin });
+  assert.strictEqual(abierto.datos.provisional, true);
+  const r = await api("GET", `/api/bolsa-km?cliente_id=${suma}&mes=${mesAnterior.slice(0, 7)}`, { token: tokens.admin });
   assert.strictEqual(r.status, 200, JSON.stringify(r.datos));
+  assert.strictEqual(r.datos.provisional, false);
   assert.strictEqual(r.datos.km_mes, 928);
   assert.deepStrictEqual(r.datos.columna, { desde: 900.01, hasta: 1200 });
   assert.strictEqual(r.datos.siguiente.faltan_km, 272.01);

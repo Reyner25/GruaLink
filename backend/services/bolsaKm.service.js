@@ -9,11 +9,12 @@
  * Mientras el mes está abierto los valores son provisionales: el último
  * servicio del mes puede cambiar la columna de todos.
  */
+const { pool, withTransaction } = require("../config/db");
 const ServicioModel = require("../models/servicio.model");
 const CatalogosModel = require("../models/catalogos.model");
 const TarifaModel = require("../models/tarifa.model");
 const BitacoraModel = require("../models/bitacora.model");
-const { calcularValores } = require("./tarifa.service");
+const { calcularValores, BOLSA_PROVISIONAL } = require("./tarifa.service");
 
 const esBolsa = async (client, clienteId) => (await TarifaModel.modalidadCliente(clienteId, { client })) === "bolsa_km_mensual";
 
@@ -40,6 +41,8 @@ async function bloquearSiAplica(client, servicioId) {
  */
 async function recalcularMes(client, { clienteId, fecha, excluirId = null, usuarioId = null }) {
   if (!(await esBolsa(client, clienteId))) return 0;
+  // Mes abierto: todos usan la columna provisional; los demás no cambian
+  if (await TarifaModel.mesAbierto(fecha, { client })) return 0;
   await TarifaModel.bloquearBolsaMes(client, clienteId, fecha);
 
   const { rows } = await client.query(
@@ -76,7 +79,7 @@ async function recalcularMes(client, { clienteId, fecha, excluirId = null, usuar
     const igual =
       valores.valor_calculado === s.valor_calculado &&
       valores.tarifa_bolsa_id === s.tarifa_bolsa_id &&
-      Number(valores.bolsa_km_mes) === Number(s.bolsa_km_mes);
+      (valores.bolsa_km_mes ?? null) === (s.bolsa_km_mes ?? null);
     if (igual) continue;
 
     await ServicioModel.actualizarValores(client, id, valores);
@@ -87,9 +90,34 @@ async function recalcularMes(client, { clienteId, fecha, excluirId = null, usuar
       operacion: "actualizar",
       anteriores: { valor_calculado: s.valor_calculado, bolsa_km_mes: s.bolsa_km_mes, tarifa_bolsa_id: s.tarifa_bolsa_id },
       nuevos: { valor_calculado: valores.valor_calculado, bolsa_km_mes: valores.bolsa_km_mes, tarifa_bolsa_id: valores.tarifa_bolsa_id },
-      motivo: `Recálculo automático: bolsa de km del mes = ${valores.bolsa_km_mes} km`,
+      motivo:
+        valores.bolsa_km_mes === null
+          ? "Recálculo automático: mes abierto, columna provisional 1500–1800 km"
+          : `Recálculo automático: bolsa de km del mes = ${valores.bolsa_km_mes} km`,
     });
     cambiaron++;
+  }
+  return cambiaron;
+}
+
+/**
+ * Cierre de meses: busca servicios que quedaron con la columna PROVISIONAL
+ * (bolsa_km_mes vacío) en meses que ya terminaron y recalcula esos meses con
+ * la columna real. La llama el mantenimiento cada hora; si el servidor estuvo
+ * apagado, se pone al día con todos los meses pendientes.
+ * Los servicios ya aprobados conservan el valor con que se aprobaron.
+ */
+async function cerrarMesesPendientes() {
+  const { rows } = await pool.query(
+    `SELECT DISTINCT s.cliente_id, to_char(date_trunc('month', s.fecha_servicio), 'YYYY-MM-DD') AS fecha
+     FROM servicios s
+     WHERE s.tarifa_bolsa_id IS NOT NULL AND s.bolsa_km_mes IS NULL
+       AND s.estado IN ('finalizado', 'en_revision')
+       AND date_trunc('month', s.fecha_servicio) < date_trunc('month', current_date)`,
+  );
+  let cambiaron = 0;
+  for (const { cliente_id: clienteId, fecha } of rows) {
+    cambiaron += await withTransaction((client) => recalcularMes(client, { clienteId, fecha }));
   }
   return cambiaron;
 }
@@ -109,6 +137,9 @@ async function resumenMes({ clienteId, mes }, { client } = {}) {
   const siguiente = columnas.find((c) => n(c.bolsa_km_desde) > kmMes);
   return {
     mes,
+    // Mes abierto: los valores se calculan con la columna provisional
+    provisional: await TarifaModel.mesAbierto(fecha, opciones),
+    columna_provisional: BOLSA_PROVISIONAL.columna,
     km_mes: kmMes,
     columna: actual ? { desde: n(actual.bolsa_km_desde), hasta: n(actual.bolsa_km_hasta) } : null,
     siguiente: siguiente ? { desde: n(siguiente.bolsa_km_desde), faltan_km: Math.round((n(siguiente.bolsa_km_desde) - kmMes) * 100) / 100 } : null,
@@ -116,4 +147,4 @@ async function resumenMes({ clienteId, mes }, { client } = {}) {
   };
 }
 
-module.exports = { bloquearSiAplica, recalcularMes, resumenMes, esBolsa };
+module.exports = { bloquearSiAplica, recalcularMes, cerrarMesesPendientes, resumenMes, esBolsa };

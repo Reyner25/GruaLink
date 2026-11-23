@@ -31,7 +31,7 @@ import {
   Typography,
 } from "@mui/material";
 import { aprobarServicio, corregirServicio, cambiarEstadoServicio } from "../../api/admin.api";
-import { formatoMoneda, hoy, mensajeError, UNIDADES_COBRO } from "../../utils/formato";
+import { formatoMoneda, mensajeError, UNIDADES_COBRO } from "../../utils/formato";
 
 const aNumero = (v) => Number(String(v).replace(",", "."));
 const numeroValido = (v, { min = 0, max = 9999 } = {}) => v !== "" && !Number.isNaN(aNumero(v)) && aNumero(v) >= min && aNumero(v) <= max;
@@ -287,9 +287,10 @@ export function DialogoAprobar({ abierto, onCerrar, onListo, servicio }) {
           {(Number(servicio.km_servicio) === 0 && Number(servicio.km_vacio) === 0) && (
             <Alert severity="warning">Este servicio no tiene kilómetros registrados. Si el cliente cobra por distancia, corríjalos antes de aprobar.</Alert>
           )}
-          {servicio.tarifa_bolsa_id && String(servicio.fecha_servicio).slice(0, 7) >= hoy().slice(0, 7) && (
+          {servicio.tarifa_bolsa_id && servicio.bolsa_km_mes === null && (
             <Alert severity="warning">
-              Bolsa de km: el mes de este servicio aún no termina. Si se aprueba ahora, el valor queda fijo aunque la bolsa del mes cambie después.
+              Bolsa de km: el mes aún no termina y el valor es PROVISIONAL (columna 1.500–1.800 km). Si se aprueba ahora, queda fijo y no se ajusta con la
+              columna real del mes.
             </Alert>
           )}
           <TextField

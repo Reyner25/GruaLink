@@ -31,6 +31,12 @@ const TarifaModel = {
 
   // ---------- Bolsa de kilometraje mensual (Suma) ----------
 
+  // ¿El mes de esta fecha sigue abierto? (es el mes actual o uno futuro, hora de Colombia)
+  async mesAbierto(fecha, { client = pool } = {}) {
+    const { rows } = await client.query("SELECT date_trunc('month', $1::date) >= date_trunc('month', current_date) AS abierto", [fecha]);
+    return rows[0].abierto;
+  },
+
   async modalidadCliente(clienteId, { client = pool } = {}) {
     const { rows } = await client.query("SELECT modalidad_cobro FROM clientes WHERE id = $1", [clienteId]);
     return rows[0]?.modalidad_cobro || "por_servicio";

@@ -18,14 +18,17 @@
   - La bolsa son los km del mes calendario: suman los no anulados y los que están dentro de la disponibilidad.
   - Los adicionales se registran **sin cobro** y no hay recargo nocturno.
 - **Fuera de la disponibilidad**, o servicio fallido: **tarifa y precios de Clientes generales**, con adicionales y recargo nocturno automático (20:40 a 6:00). Sus km no suman a la bolsa.
-- Cada vez que un servicio del mes se finaliza, se corrige, se anula o se reabre, los demás **no aprobados** se **recalculan solos**. Cada recálculo queda en la bitácora. Los **aprobados conservan su valor**.
+- **Mes abierto** (decidido el 23/11/2026): mientras no se sabe en qué bolsa caerá el mes, los servicios se calculan con la **columna provisional 1500–1800 km** (`BOLSA_PROVISIONAL` en `tarifa.service.js`).
+- **Al terminar el mes**, el mantenimiento horario (`cerrarMesesPendientes`) recalcula esos servicios con la **columna real**. Si el servidor estuvo apagado, se pone al día solo.
+- En meses cerrados, cada vez que un servicio se finaliza, se corrige, se anula o se reabre, los demás **no aprobados** se **recalculan solos**. Cada recálculo queda en la bitácora.
+- Los **aprobados conservan su valor**. Por eso conviene aprobar los servicios de Suma después del cierre del mes; si se aprueban antes, sale un aviso.
 
 **Decisiones PROVISIONALES** (preguntas sin responder; se cambian fácil):
 
 | Tema | Se hizo así | Dónde se cambia |
 |---|---|---|
 | Km que cuentan | Servicio + vacío, para la fila y para la bolsa (como dice el Excel) | `calcularPorBolsa` en `tarifa.service.js` y `kmBolsaMes` en `tarifa.model.js` |
-| Valor con el mes abierto | Provisional, con la columna que lleva el mes, y aviso en pantalla | — |
+| Valor con el mes abierto | **Decidido:** columna 1500–1800 km hasta el cierre del mes | `BOLSA_PROVISIONAL` |
 | Bolsa < 600 o > 2.400 km | Columna más cercana (600–900 / 2100–2400) | `BOLSA_SUMA.columnas` en `seeds/seed.js` |
 | Límite de columna | El tope queda incluido: 1.800 km → 1500–1800 | Ídem |
 | Aprobar antes de fin de mes | Se permite, con aviso: el valor queda fijo | `DialogoAprobar` |
