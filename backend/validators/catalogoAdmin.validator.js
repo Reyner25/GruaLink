@@ -31,6 +31,12 @@ const camposCliente = (opcional) => [
   c.textoNulable("telefono", 30),
   emailNulable,
   c.textoNulable("direccion", 255),
+  // Hora de corte del recargo nocturno ("19:00"); vacío = la general (20:40)
+  body("recargo_nocturno_desde")
+    .optional({ values: "undefined" })
+    .customSanitizer((v) => (typeof v === "string" ? v.trim() || null : v))
+    .custom((v) => v === null || (typeof v === "string" && /^([01]\d|2[0-3]):[0-5]\d$/.test(v)))
+    .withMessage("Hora inválida (formato HH:MM, ej. 19:00)"),
   c.booleano("activo", { opcional: true }),
 ];
 

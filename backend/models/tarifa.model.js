@@ -30,6 +30,20 @@ const TarifaModel = {
   },
 
   /**
+   * Datos para el recargo nocturno automático: el concepto marcado como
+   * recargo (si existe y está activo) y la hora de corte propia del cliente
+   * (NULL = usar la general).
+   */
+  async reglaRecargoNocturno(clienteId, { client = pool } = {}) {
+    const { rows } = await client.query(
+      `SELECT (SELECT id FROM conceptos_tarifa WHERE es_recargo_nocturno AND activo) AS concepto_id,
+              (SELECT to_char(recargo_nocturno_desde, 'HH24:MI') FROM clientes WHERE id = $1) AS desde`,
+      [clienteId],
+    );
+    return rows[0];
+  },
+
+  /**
    * Precio vigente de cada concepto pedido: el del cliente si existe,
    * si no, el de "Clientes generales". DISTINCT ON se queda con la primera
    * fila de cada concepto según el ORDER BY (cliente antes que generales).

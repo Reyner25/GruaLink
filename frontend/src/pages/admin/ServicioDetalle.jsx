@@ -347,7 +347,14 @@ export default function ServicioDetalle() {
                   </TableRow>
                   {conceptos.map((c) => (
                     <TableRow key={c.concepto_id}>
-                      <TableCell>{c.nombre}</TableCell>
+                      <TableCell>
+                        {c.nombre}
+                        {c.es_recargo_nocturno && (
+                          <Typography variant="caption" color="text.secondary" component="div">
+                            Automático: el servicio terminó en horario nocturno
+                          </Typography>
+                        )}
+                      </TableCell>
                       <TableCell align="right">{cantidadConUnidad(c.cantidad, c.unidad_cobro)}</TableCell>
                       <TableCell align="right">{formatoMoneda(c.valor_unitario)}</TableCell>
                       <TableCell align="right">{formatoMoneda(c.total)}</TableCell>

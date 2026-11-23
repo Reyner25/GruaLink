@@ -21,12 +21,54 @@
  * (0 por defecto) y se recalcula cuando el administrador los corrige.
  * PENDIENTE (P10): conceptos con unidad "porcentaje" se rechazan hasta definir
  *   sobre qué base se calculan.
+ *
+ * RECARGO NOCTURNO AUTOMÁTICO (tarifas 2026): si el servicio TERMINA después
+ * de la hora de corte (20:40 general; cada cliente puede tener la suya, ej.
+ * La Rolita 19:00) y antes de las 6:00 a. m. (hora de Colombia), se agrega
+ * solo el concepto marcado como recargo (cantidad 1). Nadie lo agrega ni lo
+ * quita a mano: si la hora de fin cambia en una corrección, se recalcula.
  */
 const TarifaModel = require("../models/tarifa.model");
 const { errorNegocio } = require("../utils/errores");
 
 // Redondea a 2 decimales (centavos) para que coincida con NUMERIC(12,2)
 const redondear = (n) => Math.round(Number(n) * 100) / 100;
+
+const RECARGO_NOCTURNO = {
+  desdeGeneral: "20:40", // hora de corte de "Clientes generales"
+  hasta: "06:00", // hasta esta hora de la madrugada sigue aplicando
+};
+
+const minutosDelDia = (hhmm) => {
+  const [h, m] = String(hhmm).split(":").map(Number);
+  return h * 60 + m;
+};
+
+/**
+ * ¿La hora de fin cae en horario nocturno? Se compara la hora de COLOMBIA.
+ * Estrictamente después de la hora de corte (20:40 → 20:41 sí, 20:40 no) y
+ * antes de las 6:00 (05:59 sí, 06:00 no).
+ */
+function esNocturno(finServicio, desde = RECARGO_NOCTURNO.desdeGeneral) {
+  if (!finServicio) return false;
+  const fin = new Date(finServicio);
+  if (Number.isNaN(fin.getTime())) return false;
+  const partes = new Intl.DateTimeFormat("en-GB", { timeZone: "America/Bogota", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(fin);
+  const minutos = minutosDelDia(partes);
+  return minutos > minutosDelDia(desde) || minutos < minutosDelDia(RECARGO_NOCTURNO.hasta);
+}
+
+/**
+ * Quita el recargo que venga en la lista (es automático) y lo agrega si
+ * corresponde según la hora de fin. Devuelve la lista final de conceptos.
+ */
+async function aplicarRecargoNocturno({ conceptos = [], clienteId, finServicio }, opciones) {
+  const regla = await TarifaModel.reglaRecargoNocturno(clienteId, opciones);
+  if (!regla.concepto_id) return { conceptos, automaticos: new Set() };
+  const sinRecargo = conceptos.filter((c) => c.concepto_id !== regla.concepto_id);
+  if (!esNocturno(finServicio, regla.desde || RECARGO_NOCTURNO.desdeGeneral)) return { conceptos: sinRecargo, automaticos: new Set() };
+  return { conceptos: [...sinRecargo, { concepto_id: regla.concepto_id, cantidad: 1 }], automaticos: new Set([regla.concepto_id]) };
+}
 
 function kmFacturables({ kmServicio }) {
   return redondear(kmServicio);
@@ -67,7 +109,7 @@ async function seleccionarTarifa({ clienteId, tipoVehiculoId, tipoServicioId, fe
  * soloOperador=true: cuando el que envía los conceptos es el OPERADOR, se
  * rechazan los que no le corresponde reportar (stand-by, recargo nocturno).
  */
-async function calcularConceptos({ conceptos = [], clienteId, fecha, soloOperador = false }, opciones) {
+async function calcularConceptos({ conceptos = [], clienteId, fecha, soloOperador = false, automaticos = new Set() }, opciones) {
   if (conceptos.length === 0) return { detalle: [], total: 0 };
 
   const ids = conceptos.map((c) => c.concepto_id);
@@ -83,7 +125,8 @@ async function calcularConceptos({ conceptos = [], clienteId, fecha, soloOperado
     if (!precio || !precio.activo) {
       throw errorNegocio(422, "CONCEPTO_INVALIDO", `El concepto ${id} no existe o está inactivo`);
     }
-    if (soloOperador && !precio.la_reporta_operador) {
+    // Los automáticos (recargo nocturno) los agrega el sistema, no el operador
+    if (soloOperador && !precio.la_reporta_operador && !automaticos.has(id)) {
       throw errorNegocio(403, "CONCEPTO_SOLO_ADMIN", `"${precio.nombre}" lo aplica el administrador, no el operador`);
     }
     if (precio.unidad_cobro === "porcentaje") {
@@ -110,11 +153,15 @@ async function calcularConceptos({ conceptos = [], clienteId, fecha, soloOperado
  * Devuelve lo que se guarda en la tabla servicios + el detalle de conceptos.
  */
 async function calcularValores(
-  { clienteId, tipoVehiculo, tipoServicio, fecha, kmServicio, conceptos, soloOperador = false },
+  { clienteId, tipoVehiculo, tipoServicio, fecha, kmServicio, conceptos, finServicio, soloOperador = false },
   opciones,
 ) {
   const km = kmFacturables({ kmServicio });
-  const adicionales = await calcularConceptos({ conceptos, clienteId, fecha, soloOperador }, opciones);
+  const conRecargo = await aplicarRecargoNocturno({ conceptos, clienteId, finServicio }, opciones);
+  const adicionales = await calcularConceptos(
+    { conceptos: conRecargo.conceptos, clienteId, fecha, soloOperador, automaticos: conRecargo.automaticos },
+    opciones,
+  );
 
   if (tipoServicio.valor_a_convenir || tipoVehiculo.es_otro) {
     return {
@@ -143,4 +190,4 @@ async function calcularValores(
   };
 }
 
-module.exports = { calcularValores, seleccionarTarifa, calcularConceptos, kmFacturables, redondear };
+module.exports = { calcularValores, seleccionarTarifa, calcularConceptos, kmFacturables, redondear, esNocturno, RECARGO_NOCTURNO };

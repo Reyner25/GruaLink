@@ -28,6 +28,7 @@ export default function Clientes() {
           { campo: "nit", titulo: "NIT" },
           { campo: "telefono", titulo: "Teléfono" },
           { campo: "email", titulo: "Correo" },
+          { campo: "recargo_nocturno_desde", titulo: "Recargo nocturno", render: (f) => (f.recargo_nocturno_desde ? `desde ${f.recargo_nocturno_desde.slice(0, 5)}` : "20:40 (general)") },
           { campo: "activo", titulo: "Estado", render: activo },
         ]}
         campos={[
@@ -37,6 +38,13 @@ export default function Clientes() {
           { campo: "telefono", etiqueta: "Teléfono", tipo: "texto", nulable: true },
           { campo: "email", etiqueta: "Correo electrónico", tipo: "email", nulable: true },
           { campo: "direccion", etiqueta: "Dirección", tipo: "texto", nulable: true },
+          {
+            campo: "recargo_nocturno_desde",
+            etiqueta: "Recargo nocturno desde",
+            tipo: "hora",
+            nulable: true,
+            ayuda: "Si el servicio termina después de esta hora (y antes de las 6:00 a. m.) se cobra el recargo nocturno. Vacío = 20:40 (general)",
+          },
           { campo: "activo", etiqueta: "Activo (aparece en el celular)", tipo: "booleano" },
         ]}
       />

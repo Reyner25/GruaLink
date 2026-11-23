@@ -35,8 +35,11 @@ const aNumero = (v) => Number(String(v).replace(",", "."));
 const numeroValido = (v, { min = 0, max = 9999 } = {}) => v !== "" && !Number.isNaN(aNumero(v)) && aNumero(v) >= min && aNumero(v) <= max;
 
 // ---------- Corregir ----------
-export function DialogoCorregir({ abierto, onCerrar, onListo, servicio, conceptosActuales, catalogoConceptos }) {
+export function DialogoCorregir({ abierto, onCerrar, onListo, servicio, conceptosActuales: todosActuales, catalogoConceptos: todoElCatalogo }) {
   const cerrado = ["finalizado", "en_revision"].includes(servicio.estado);
+  // El recargo nocturno es automático (según la hora de fin): no se marca a mano
+  const conceptosActuales = todosActuales.filter((c) => !c.es_recargo_nocturno);
+  const catalogoConceptos = todoElCatalogo.filter((c) => !c.es_recargo_nocturno);
   const inicial = () => ({
     km_vacio: String(servicio.km_vacio ?? 0),
     km_servicio: String(servicio.km_servicio ?? 0),
@@ -130,6 +133,9 @@ export function DialogoCorregir({ abierto, onCerrar, onListo, servicio, concepto
             <Box>
               <Typography variant="subtitle2" sx={{ mb: 1 }}>
                 Trabajos adicionales (el precio lo pone el sistema según el cliente y la fecha)
+              </Typography>
+              <Typography variant="caption" color="text.secondary" component="div" sx={{ mb: 1 }}>
+                El recargo nocturno no aparece aquí: el sistema lo aplica solo cuando el servicio termina en horario nocturno.
               </Typography>
               <Table size="small">
                 <TableHead>

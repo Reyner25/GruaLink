@@ -41,7 +41,7 @@ const CatalogosModel = {
   // Solo el catálogo (QUÉ se cobra), sin precios: el operador no ve valores
   async conceptosActivos() {
     const { rows } = await pool.query(
-      `SELECT id, nombre, unidad_cobro, la_reporta_operador FROM conceptos_tarifa
+      `SELECT id, nombre, unidad_cobro, la_reporta_operador, es_recargo_nocturno FROM conceptos_tarifa
        WHERE activo = TRUE ORDER BY nombre`,
     );
     return rows;

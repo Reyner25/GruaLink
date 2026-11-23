@@ -83,6 +83,14 @@ Cada pantalla solo **describe** el recurso; el componente lista, busca, crea, ed
 
 Se borraron las pantallas del panel anterior (`PanelPage`, `ListadoOrdenesPage`, `DetalleOrdenPage`, `MonitoreoPage`, `InicioPage`, `OrdenServicioPage`, `LayoutPrincipal`, `components/ordenes/*`) y archivos sobrantes de la plantilla de Vite. Siguen en el historial de git (commit `092a53d` y anteriores).
 
+## 5.1 Recargo nocturno automático (23/11/2026)
+
+- Se cobra **solo** si el servicio **termina** después de la hora de corte del cliente y **antes de las 6:00 a. m.** (hora de Colombia). Corte general **20:40**; por cliente en *Clientes → Recargo nocturno desde* (La Rolita **19:00**).
+- Límites: 20:40 exacto no lleva recargo, 20:41 sí; 05:59 sí, 06:00 no.
+- Se calcula al finalizar y en cada corrección (si cambia la hora de fin, se agrega o se quita). Nadie lo marca a mano: no aparece en *Corregir* ni en el celular; en el detalle sale como "Automático".
+- Precio: el del concepto "Recargo nocturno" del cliente (o el general).
+- Código: `esNocturno` y `aplicarRecargoNocturno` en `backend/services/tarifa.service.js` (constantes `RECARGO_NOCTURNO`). Los servicios anteriores no se recalcularon.
+
 ## 6. Exportar a Excel (23/11/2026)
 
 Botón **"Exportar a Excel"** en *Inicio*, *Servicios* y *Promedio de grúas*. Exporta **todos** los registros del filtro actual (no solo la página visible).

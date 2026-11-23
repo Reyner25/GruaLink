@@ -10,7 +10,7 @@
  *   columnas  [{ campo, titulo, render?(fila), alinear? }]
  *   campos    [{ campo, etiqueta, tipo, requerido?, soloCrear?, opciones?,
  *                nulable?, ayuda?, deshabilitado?(fila) }]
- *             tipo: "texto" | "numero" | "dinero" | "fecha" | "booleano" |
+ *             tipo: "texto" | "numero" | "dinero" | "fecha" | "hora" | "booleano" |
  *                   "select" | "password" | "email"
  *   filtros   valores fijos para el listado (ej. { cliente_id: "generales" })
  *   accionesFila(fila, recargar)  botones extra por fila
@@ -63,6 +63,7 @@ function aFormulario(campo, valor) {
   if (valor === null || valor === undefined) return "";
   if (campo.tipo === "select") return String(valor);
   if (campo.tipo === "numero" || campo.tipo === "dinero") return String(valor).replace(".", ",");
+  if (campo.tipo === "hora") return String(valor).slice(0, 5); // "19:00:00" → "19:00"
   return String(valor);
 }
 
@@ -180,6 +181,7 @@ function DialogoRegistro({ abierto, fila, campos, ruta, claveUno, titulo, textoN
               );
             }
             if (c.tipo === "fecha") return <TextField type="date" {...comun} slotProps={{ inputLabel: { shrink: true } }} />;
+            if (c.tipo === "hora") return <TextField type="time" {...comun} slotProps={{ inputLabel: { shrink: true } }} />;
             if (c.tipo === "dinero")
               return (
                 <TextField

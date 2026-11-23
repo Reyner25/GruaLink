@@ -44,6 +44,9 @@ async function idDe(sql, valor) {
 const haceMinutos = (min) => new Date(Date.now() - min * 60000).toISOString();
 
 before(async () => {
+  // Servicios que terminan "hace minutos": de noche el recargo automático
+  // cambiaría los valores esperados. Se desactiva durante estas pruebas.
+  await pool.query("UPDATE conceptos_tarifa SET activo = FALSE WHERE es_recargo_nocturno");
   // Que los operadores de prueba no tengan turnos abiertos de otras corridas
   await pool.query(
     `UPDATE turnos_operador SET estado = 'finalizado', fin = now()
@@ -66,6 +69,8 @@ before(async () => {
 });
 
 after(async () => {
+  // Ver api.operador.test.js: el recargo nocturno se desactiva durante las pruebas
+  await pool.query("UPDATE conceptos_tarifa SET activo = TRUE WHERE es_recargo_nocturno");
   servidor?.close();
   await pool.end();
 });

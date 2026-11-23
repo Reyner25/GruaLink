@@ -102,12 +102,23 @@ before(async () => {
   ids.camara = await idDe("SELECT id FROM conceptos_tarifa WHERE nombre = $1", "Quitar cámara de freno");
   ids.otro = await idDe("SELECT id FROM tipos_vehiculo WHERE nombre = $1", "Otro");
   ids.hoy = (await pool.query("SELECT current_date::text AS hoy")).rows[0].hoy;
+  ids.ayer = (await pool.query("SELECT (current_date - 1)::text AS d")).rows[0].d;
+  ids.recargo = await idDe("SELECT id FROM conceptos_tarifa WHERE es_recargo_nocturno = $1", true);
+  // Los servicios de prueba terminan "hace 5 minutos": si las pruebas se corren
+  // de noche, el recargo nocturno automático cambiaría los valores esperados.
+  // Se desactiva aquí; la prueba del recargo lo activa con horas fijas.
+  await recargoNocturnoActivo(false);
 });
 
 after(async () => {
+  await recargoNocturnoActivo(true);
   servidor?.close();
   await pool.end();
 });
+
+async function recargoNocturnoActivo(activo) {
+  await pool.query("UPDATE conceptos_tarifa SET activo = $1 WHERE es_recargo_nocturno", [activo]);
+}
 
 // ---------- Autenticación ----------
 
@@ -259,7 +270,7 @@ test("finalizar: calcula tarifa general + concepto en el backend", async () => {
   assert.strictEqual(r.datos.servicio.valor_calculado, undefined); // oculto al operador
   assert.strictEqual(r.datos.conceptos[0].total, undefined);
 
-  // El administrador sí ve los valores: Articulado general 393.000 + cardán 92.400
+  // El administrador sí ve los valores: Articulado Bogotá Móvil 393.000 + cardán 92.400
   const admin = await api("GET", `/api/servicios/${ids.servicio1}`, { token: tokens.admin });
   assert.strictEqual(admin.datos.servicio.valor_tarifa_basica, 393000);
   assert.strictEqual(admin.datos.servicio.valor_conceptos, 92400);
@@ -361,6 +372,65 @@ test("La Rolita: al finalizar usa 0 km; el administrador carga 17,5 km y se reca
   assert.strictEqual(corr.status, 200, JSON.stringify(corr.datos));
   admin = await api("GET", `/api/servicios/${id}`, { token: tokens.admin });
   assert.strictEqual(admin.datos.servicio.valor_tarifa_basica, 548000);
+});
+
+test("recargo nocturno: límites de la hora de corte (20:40 general, hasta las 6:00)", () => {
+  const { esNocturno } = require("../services/tarifa.service");
+  const a = (hora) => `${ids.ayer}T${hora}:00-05:00`; // hora de Colombia
+  assert.strictEqual(esNocturno(a("20:40")), false); // estrictamente después de 20:40
+  assert.strictEqual(esNocturno(a("20:41")), true);
+  assert.strictEqual(esNocturno(a("23:59")), true);
+  assert.strictEqual(esNocturno(a("00:30")), true);
+  assert.strictEqual(esNocturno(a("05:59")), true);
+  assert.strictEqual(esNocturno(a("06:00")), false);
+  assert.strictEqual(esNocturno(a("12:00")), false);
+  assert.strictEqual(esNocturno(a("19:30"), "19:00"), true); // La Rolita
+  assert.strictEqual(esNocturno(a("19:00"), "19:00"), false);
+  assert.strictEqual(esNocturno(null), false);
+});
+
+test("recargo nocturno: se aplica solo según la hora de fin y la hora de corte de cada cliente", async () => {
+  await recargoNocturnoActivo(true);
+  try {
+    const a = (hora) => `${ids.ayer}T${hora}:00-05:00`;
+    const horas = (solicitud, inicio, fin) => ({ hora_solicitud: a(solicitud), inicio_servicio: a(inicio), fin_servicio: a(fin) });
+    const corregir = (id, body) => api("POST", `/api/servicios/${id}/corregir`, { token: tokens.admin, body: { motivo: "Horas reales", ...body } });
+    const conceptos = async (id) => (await api("GET", `/api/servicios/${id}`, { token: tokens.admin })).datos;
+
+    // Bogotá Móvil (corte general 20:40)
+    const s = await api("POST", "/api/servicios", { token: tokens.op1, body: datosServicio() });
+    const id = s.datos.servicio.id;
+    await api("POST", `/api/servicios/${id}/finalizar`, { token: tokens.op1, body: datosFinalizar() });
+
+    let r = await corregir(id, horas("21:30", "21:45", "22:15"));
+    assert.strictEqual(r.status, 200, JSON.stringify(r.datos));
+    let d = await conceptos(id);
+    const recargo = d.conceptos.find((c) => c.concepto_id === ids.recargo);
+    assert.ok(recargo, "debe tener recargo nocturno");
+    assert.strictEqual(recargo.cantidad, 1);
+    assert.strictEqual(recargo.total, 86500); // precio Bogotá Móvil
+    assert.strictEqual(d.servicio.valor_conceptos, 86500);
+
+    // Termina 19:30 → para el corte general (20:40) ya no hay recargo
+    await corregir(id, horas("18:30", "18:45", "19:30"));
+    d = await conceptos(id);
+    assert.ok(!d.conceptos.some((c) => c.concepto_id === ids.recargo));
+    assert.strictEqual(d.servicio.valor_conceptos, 0);
+
+    // El administrador no puede ponerlo a mano: si el horario no es nocturno, se quita
+    await corregir(id, { conceptos: [{ concepto_id: ids.recargo, cantidad: 1 }] });
+    assert.ok(!(await conceptos(id)).conceptos.some((c) => c.concepto_id === ids.recargo));
+
+    // La Rolita: corte 19:00 → termina 19:30 sí lleva recargo, a su precio (98.000)
+    const lr = await api("POST", "/api/servicios", { token: tokens.op1, body: datosServicio({ cliente_id: ids.laRolita, tipo_vehiculo_id: ids.buseton }) });
+    await api("POST", `/api/servicios/${lr.datos.servicio.id}/finalizar`, { token: tokens.op1, body: datosFinalizar() });
+    r = await corregir(lr.datos.servicio.id, horas("18:30", "18:45", "19:30"));
+    assert.strictEqual(r.status, 200, JSON.stringify(r.datos));
+    d = await conceptos(lr.datos.servicio.id);
+    assert.strictEqual(d.conceptos.find((c) => c.concepto_id === ids.recargo)?.total, 98000);
+  } finally {
+    await recargoNocturnoActivo(false);
+  }
 });
 
 test("CAPITALBUS: precio propio de conceptos; el administrador agrega 1,5 h de stand-by", async () => {

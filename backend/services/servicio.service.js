@@ -200,6 +200,7 @@ const ServicioService = {
           fecha: actual.fecha_servicio,
           kmServicio: actual.km_servicio, // los km los carga el administrador (0 hasta entonces)
           conceptos: datos.conceptos,
+          finServicio: datos.fin_servicio, // define el recargo nocturno automático
           soloOperador: true,
         },
         { client },
@@ -396,6 +397,7 @@ const ServicioService = {
             fecha: final.fecha_servicio,
             kmServicio: final.km_servicio,
             conceptos: conceptos ?? conceptosAntes.map((c) => ({ concepto_id: c.concepto_id, cantidad: c.cantidad })),
+            finServicio: final.fin_servicio, // si cambia la hora de fin, el recargo se recalcula
           },
           { client },
         );

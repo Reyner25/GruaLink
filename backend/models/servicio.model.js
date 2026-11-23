@@ -133,7 +133,7 @@ const ServicioModel = {
 
   async obtenerConceptos(servicioId, { client = pool } = {}) {
     const { rows } = await client.query(
-      `SELECT sc.concepto_id, ct.nombre, ct.unidad_cobro, sc.cantidad, sc.valor_unitario, sc.total
+      `SELECT sc.concepto_id, ct.nombre, ct.unidad_cobro, ct.es_recargo_nocturno, sc.cantidad, sc.valor_unitario, sc.total
        FROM servicio_conceptos sc
        JOIN conceptos_tarifa ct ON ct.id = sc.concepto_id
        WHERE sc.servicio_id = $1

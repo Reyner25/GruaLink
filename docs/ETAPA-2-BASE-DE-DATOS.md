@@ -31,6 +31,9 @@ Archivo revisado: `REGISTRO TOTAL SERVICIOS DE GRUAS VIGENTE.xlsx` (7.745 servic
 | `006_numeracion_orden_desde_1.sql` | Corrige la 004: la numeración digital arranca en **1** (antes 10000, que chocaba con talonarios en papel ya usados) |
 | `007_vehiculo_otro_y_rescate.sql` | Tipo de vehículo "Otro" (con descripción), rescate según el tipo de servicio, conceptos que solo registra el administrador |
 | `008_bitacora_reabrir.sql` | Nueva operación de bitácora `reabrir` (servicio aprobado que vuelve a revisión). No cambia datos |
+| `009_recargo_nocturno_automatico.sql` | `clientes.recargo_nocturno_desde` (hora de corte propia; vacío = 20:40) y `conceptos_tarifa.es_recargo_nocturno` (cuál concepto agrega el sistema solo) |
+
+**Tarifas 2026** (archivo "Tarifas clientes 2026"): están en `PLANES_2026` de `backend/seeds/seed.js` y se cargan con `npm run datos-iniciales` (también en producción). Nunca sobrescribe un valor existente: si la base tiene uno distinto, lo lista al final. Suma queda pendiente (cobro por bolsa mensual de km).
 
 Antes de migrar se sacó un respaldo completo en `respaldos/` (excluida del repositorio).
 
