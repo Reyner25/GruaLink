@@ -13,6 +13,12 @@
  *   npm run migrate -- --ver -> solo muestra cuáles están pendientes
  */
 require("dotenv").config({ quiet: true });
+// Las migraciones cambian la ESTRUCTURA: se corren con el usuario dueño de la
+// base (DATABASE_URL_ADMIN). La API, en cambio, usa un usuario con permisos
+// mínimos (DATABASE_URL). En desarrollo, si no existe la variable, se usa la misma.
+if (process.env.DATABASE_URL_ADMIN && process.env.NODE_ENV !== "test") {
+  process.env.DATABASE_URL = process.env.DATABASE_URL_ADMIN;
+}
 const fs = require("fs");
 const path = require("path");
 const { pool } = require("../config/db");

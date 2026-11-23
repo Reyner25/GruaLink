@@ -11,7 +11,10 @@
     "migrate": "node migrations/run.js",
     "seed": "node seeds/seed.js",
     "respaldo": "node scripts/respaldo.js",
-    "restaurar": "node scripts/restaurar.js"
+    "restaurar": "node scripts/restaurar.js",
+    "datos-iniciales": "node seeds/seed.js --solo-catalogos",
+    "crear-admin": "node scripts/crear-admin.js",
+    "crear-usuario-app": "node scripts/crear-usuario-app.js"
   },
   "keywords": [],
   "author": "",

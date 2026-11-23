@@ -51,6 +51,9 @@ pregunta.question(
         { env: { ...process.env, PGPASSWORD: c.clave }, stdio: "inherit" },
       );
       console.log(`✔ Base "${c.base}" restaurada desde ${path.basename(archivo)}`);
+      // El respaldo no guarda permisos (--no-privileges): si en este equipo la API
+      // usa el usuario grualink_app, hay que volver a darle permisos.
+      console.log("  Si la API usa el usuario grualink_app, ejecute ahora: npm run crear-usuario-app (Enter para no cambiar la clave)");
     } catch (error) {
       console.error("✖ La restauración falló; no se cambió nada:", error.message);
       process.exitCode = 1;

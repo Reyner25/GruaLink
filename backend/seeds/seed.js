@@ -9,7 +9,9 @@
  *
  * Se puede ejecutar varias veces: si un dato ya existe, no lo duplica.
  *
- * Uso (desde la carpeta backend):  npm run seed
+ * Uso (desde la carpeta backend):
+ *   npm run seed              catálogos + usuarios de prueba (solo desarrollo)
+ *   npm run datos-iniciales   solo catálogos y tarifas (permitido en producción)
  */
 require("dotenv").config({ quiet: true });
 const bcrypt = require("bcrypt");
@@ -207,14 +209,27 @@ async function crearConceptos(client) {
   console.log(`✔ Conceptos adicionales (${CONCEPTOS.length}) con precios generales y de CAPITALBUS`);
 }
 
+// --solo-catalogos (npm run datos-iniciales): catálogos y tarifas SIN usuarios de prueba.
+const SOLO_CATALOGOS = process.argv.includes("--solo-catalogos");
+
 async function main() {
+  // En producción jamás se crean usuarios con una contraseña que está en el código
+  if (process.env.NODE_ENV === "production" && !SOLO_CATALOGOS) {
+    throw new Error(
+      "En producción no se cargan usuarios de prueba. Use 'npm run datos-iniciales' (solo catálogos) y 'npm run crear-admin'.",
+    );
+  }
   await withTransaction(async (client) => {
-    await crearUsuarios(client);
+    if (!SOLO_CATALOGOS) await crearUsuarios(client);
     await crearCatalogosBase(client);
     await crearTarifas(client);
     await crearConceptos(client);
   });
-  console.log(`\nListo. Contraseña de los usuarios de prueba: ver PASSWORD_PRUEBA en seeds/seed.js`);
+  console.log(
+    SOLO_CATALOGOS
+      ? "\nListo. Catálogos y tarifas iniciales cargados (sin usuarios). Revise las tarifas en el panel → Tarifas."
+      : "\nListo. Contraseña de los usuarios de prueba: ver PASSWORD_PRUEBA en seeds/seed.js",
+  );
 }
 
 main()

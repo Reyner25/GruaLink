@@ -30,10 +30,13 @@ function buscarHerramienta(nombre) {
   return exe; // confiar en el PATH
 }
 
-// Separa DATABASE_URL en las partes que piden pg_dump / pg_restore
+// Separa la URL de conexión en las partes que piden pg_dump / pg_restore.
+// Respaldar y restaurar se hacen con el usuario DUEÑO (DATABASE_URL_ADMIN)
+// si existe: el usuario de la API (permisos mínimos) no puede recrear tablas.
 function conexion() {
-  if (!process.env.DATABASE_URL) throw new Error("Falta DATABASE_URL en backend/.env");
-  const url = new URL(process.env.DATABASE_URL);
+  const texto = process.env.DATABASE_URL_ADMIN || process.env.DATABASE_URL;
+  if (!texto) throw new Error("Falta DATABASE_URL en backend/.env");
+  const url = new URL(texto);
   return {
     host: url.hostname,
     puerto: url.port || "5432",

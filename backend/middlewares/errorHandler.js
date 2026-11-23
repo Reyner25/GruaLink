@@ -32,6 +32,9 @@ function errorHandler(err, req, res, next) {
   if (err.type === "entity.parse.failed") {
     return res.status(400).json({ error: "El cuerpo de la petición no es JSON válido", codigo: "JSON_INVALIDO" });
   }
+  if (err.type === "entity.too.large") {
+    return res.status(413).json({ error: "La petición es demasiado grande", codigo: "PETICION_GRANDE" });
+  }
 
   const pg = ERRORES_PG[err.code];
   if (pg) {
@@ -43,9 +46,14 @@ function errorHandler(err, req, res, next) {
   }
 
   const status = err.status || 500;
-  if (status >= 500) console.error(err);
+  if (status >= 500) {
+    // Al registro del servidor va todo el detalle (fecha, ruta, usuario y pila)…
+    console.error(`[${new Date().toISOString()}] ${req.method} ${req.originalUrl} usuario=${req.usuario?.id ?? "-"}`, err);
+    // …pero al cliente NO: un código interno (ECONNREFUSED, 42P01…) daría pistas a un atacante
+    return res.status(500).json({ error: "Error interno del servidor", codigo: "ERROR_INTERNO" });
+  }
   res.status(status).json({
-    error: status >= 500 ? "Error interno del servidor" : err.message,
+    error: err.message,
     codigo: err.code,
     detalle: err.detalle,
   });
