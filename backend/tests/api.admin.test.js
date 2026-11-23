@@ -507,6 +507,47 @@ test("bitácora del servicio: historia completa en orden", async () => {
   assert.deepStrictEqual(ops, ["crear", "finalizar", "autorizar_correccion", "actualizar", "aprobar"]);
 });
 
+test("aprobado: reabrir (vuelve a revisión) y anular, solo administrador y con motivo", async () => {
+  const estado = (id, token, body) => api("PATCH", `/api/servicios/${id}/estado`, { token, body });
+
+  // El financiero (solo consulta) no puede
+  assert.strictEqual((await estado(ids.rescateServicio, tk.fin, { estado: "en_revision", motivo: "Intento" })).status, 403);
+
+  // Reabrir exige motivo
+  const sinMotivo = await estado(ids.rescateServicio, tk.admin, { estado: "en_revision" });
+  assert.strictEqual(sinMotivo.datos.codigo, "MOTIVO_OBLIGATORIO");
+
+  // Reabrir: vuelve a revisión y se quita la aprobación
+  const re = await estado(ids.rescateServicio, tk.admin, { estado: "en_revision", motivo: "El cliente reportó km adicionales" });
+  assert.strictEqual(re.status, 200, JSON.stringify(re.datos));
+  assert.strictEqual(re.datos.servicio.estado, "en_revision");
+  assert.strictEqual(re.datos.servicio.valor_aprobado, null);
+  assert.strictEqual(re.datos.servicio.aprobado_por, null);
+
+  // La bitácora guarda la aprobación anterior
+  const bit = await api("GET", `/api/bitacora?entidad=servicios&registro_id=${ids.rescateServicio}&operacion=reabrir`, { token: tk.admin });
+  const reg = bit.datos.registros[0];
+  assert.strictEqual(reg.valores_anteriores.estado, "aprobado");
+  assert.strictEqual(Number(reg.valores_anteriores.valor_aprobado), 900000);
+  assert.strictEqual(reg.motivo, "El cliente reportó km adicionales");
+
+  // Ya se puede corregir y aprobar otra vez
+  const corr = await api("POST", `/api/servicios/${ids.rescateServicio}/corregir`, { token: tk.admin, body: { km_servicio: 5, motivo: "Km reales" } });
+  assert.strictEqual(corr.status, 200, JSON.stringify(corr.datos));
+  const ap = await api("POST", `/api/servicios/${ids.rescateServicio}/aprobar`, { token: tk.admin, body: { valor_aprobado: 950000, motivo: "Ajuste por km" } });
+  assert.strictEqual(ap.datos.servicio.estado, "aprobado");
+  assert.strictEqual(ap.datos.servicio.valor_aprobado, 950000);
+
+  // Anular un aprobado: exige motivo y conserva los datos de la aprobación
+  assert.strictEqual((await estado(ids.servicio, tk.admin, { estado: "anulado" })).datos.codigo, "MOTIVO_OBLIGATORIO");
+  const an = await estado(ids.servicio, tk.admin, { estado: "anulado", motivo: "Servicio facturado por error" });
+  assert.strictEqual(an.datos.servicio.estado, "anulado");
+  assert.strictEqual(an.datos.servicio.valor_aprobado, 650000);
+
+  // Un anulado ya no cambia
+  assert.strictEqual((await estado(ids.servicio, tk.admin, { estado: "en_revision", motivo: "Reabrir anulado" })).datos.codigo, "TRANSICION_INVALIDA");
+});
+
 test("cierre: el operador finaliza su turno", async () => {
   const r = await api("POST", "/api/turnos/finalizar", { token: tk.op, body: { observaciones: "Fin de pruebas" } });
   assert.strictEqual(r.status, 200, JSON.stringify(r.datos));

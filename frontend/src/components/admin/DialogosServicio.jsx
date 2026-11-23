@@ -293,7 +293,7 @@ export function DialogoAprobar({ abierto, onCerrar, onListo, servicio }) {
 }
 
 // ---------- Anular / devolver (cambio de estado con motivo) ----------
-export function DialogoMotivo({ abierto, onCerrar, onListo, servicio, estado, titulo, textoBoton, color = "primary", obligatorio = true }) {
+export function DialogoMotivo({ abierto, onCerrar, onListo, servicio, estado, titulo, textoBoton, color = "primary", obligatorio = true, explicacion }) {
   const [motivo, setMotivo] = useState("");
   const [enviando, setEnviando] = useState(false);
   const [error, setError] = useState("");
@@ -318,6 +318,11 @@ export function DialogoMotivo({ abierto, onCerrar, onListo, servicio, estado, ti
         {titulo} · orden #{servicio.numero_orden}
       </DialogTitle>
       <DialogContent dividers>
+        {explicacion && (
+          <Alert severity={color === "error" ? "error" : "warning"} sx={{ mb: 2 }}>
+            {explicacion}
+          </Alert>
+        )}
         <TextField
           autoFocus
           fullWidth

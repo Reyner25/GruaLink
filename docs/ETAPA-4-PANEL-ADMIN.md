@@ -8,7 +8,7 @@
 |---|---|---|---|
 | Inicio | `/admin` | admin, financiero | Indicadores reales (SQL): flota hoy, servicios del periodo, valor calculado/aprobado, tiempo de reacción, servicios por día y por cliente. Filtros por fecha, cliente, grúa, operador y estado (guardados en la URL) |
 | Servicios | `/admin/servicios` | admin, financiero | Listado con filtros y paginación |
-| — detalle | `/admin/servicios/:id` | admin (acciones) · financiero (solo ver) | Datos, tiempos, km, valores y bitácora. Acciones: **Pasar a revisión · Corregir · Aprobar · Devolver · Anular** |
+| — detalle | `/admin/servicios/:id` | admin (acciones) · financiero (solo ver) | Datos, tiempos, km, valores y bitácora. Acciones: **Pasar a revisión · Corregir · Aprobar · Devolver · Anular**; en aprobados: **Reabrir · Anular**; siempre: **Orden en PDF** |
 | Tarifas | `/admin/tarifas` | admin edita · financiero ve | Pestañas *Tarifa básica* y *Precios de conceptos*. Filtro por cliente y "vigentes el" |
 | Clientes | `/admin/clientes` | admin edita · financiero ve | Crear, editar, desactivar |
 | Grúas | `/admin/gruas` | admin edita · financiero ve | Crear, editar, **cambiar estado** con motivo, historial de estados, quién la usa ahora |
@@ -74,6 +74,10 @@ Cada pantalla solo **describe** el recurso; el componente lista, busca, crea, ed
 ## 4. Cambio de regla en el backend
 
 - **Anular después de finalizar**: ahora un servicio *finalizado* o *en revisión* también se puede anular (con motivo). Caso real del Excel: "ANULADA, SE CAMBIA POR OS …". Se revierte en `TRANSICIONES` de `backend/services/servicio.service.js`.
+- **Servicios aprobados (23/11/2026)**: el administrador puede, siempre con **motivo obligatorio**:
+  - **Reabrir** → vuelve a *En revisión*; se quitan valor aprobado, quién y cuándo (dejan de sumar como aprobado). Luego se corrige y se aprueba de nuevo. La bitácora guarda la aprobación anterior (operación `reabrir`).
+  - **Anular** → queda *Anulado* y deja de sumar; se conservan los datos de la aprobación como historia.
+  - El financiero no puede (solo consulta). Un servicio **anulado** sigue siendo definitivo. No existe borrar servicios.
 
 ## 5. Limpieza
 

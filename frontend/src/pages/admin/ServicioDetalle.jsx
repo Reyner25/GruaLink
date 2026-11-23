@@ -6,7 +6,9 @@
  *   abierto ............ Corregir datos · Anular
  *   finalizado ......... Pasar a revisión · Corregir · Aprobar · Anular
  *   en revisión ........ Corregir · Aprobar · Devolver a finalizado · Anular
- *   aprobado / anulado . (sin acciones: queda cerrado)
+ *   aprobado ........... Reabrir (vuelve a revisión) · Anular — ambos con motivo
+ *   anulado ............ (sin acciones: queda cerrado)
+ * En todos los estados: descargar la orden en PDF.
  * El financiero solo ve (no tiene los permisos de las acciones).
  */
 import { useState } from "react";
@@ -34,6 +36,7 @@ import VerifiedIcon from "@mui/icons-material/Verified";
 import BlockIcon from "@mui/icons-material/Block";
 import RateReviewIcon from "@mui/icons-material/RateReview";
 import UndoIcon from "@mui/icons-material/Undo";
+import LockOpenIcon from "@mui/icons-material/LockOpen";
 import { useAuth } from "../../context/AuthContext";
 import { useCargar } from "../../hooks/useCargar";
 import { obtenerServicioDetalle } from "../../api/servicios.api";
@@ -76,6 +79,7 @@ const OPERACIONES = {
   autorizar_correccion: "Corrección",
   aprobar: "Aprobado",
   anular: "Anulado",
+  reabrir: "Reabierto (se quitó la aprobación)",
 };
 
 // Nombres legibles para los campos que aparecen en la bitácora
@@ -149,7 +153,7 @@ export default function ServicioDetalle() {
   const { usuario } = useAuth();
   const detalle = useCargar(() => obtenerServicioDetalle(id), [id]);
   const catalogos = useCargar(obtenerCatalogos, []);
-  const [dialogo, setDialogo] = useState(null); // "corregir" | "aprobar" | "anular" | "devolver"
+  const [dialogo, setDialogo] = useState(null); // "corregir" | "aprobar" | "anular" | "devolver" | "reabrir"
   const [aviso, setAviso] = useState(null);
   const [version, setVersion] = useState(0);
   const [errorAccion, setErrorAccion] = useState("");
@@ -160,7 +164,9 @@ export default function ServicioDetalle() {
   const { servicio: s, conceptos } = detalle.datos;
   const abierto = ESTADOS_ABIERTOS.includes(s.estado);
   const revisable = ["finalizado", "en_revision"].includes(s.estado);
-  const cerradoDefinitivo = ["aprobado", "anulado"].includes(s.estado);
+  const aprobado = s.estado === "aprobado";
+  const cerradoDefinitivo = aprobado || s.estado === "anulado";
+  const puedeCambiarEstado = puede(usuario, "servicios:cambiar_estado");
 
   function terminar(mensaje) {
     setDialogo(null);
@@ -209,11 +215,24 @@ export default function ServicioDetalle() {
     </>
   );
 
+  // Aprobado: solo el administrador puede reabrirlo o anularlo (con motivo)
+  const accionesAprobado = aprobado && puedeCambiarEstado && (
+    <>
+      <Button startIcon={<LockOpenIcon />} onClick={() => setDialogo("reabrir")}>
+        Reabrir
+      </Button>
+      <Button color="error" startIcon={<BlockIcon />} onClick={() => setDialogo("anular")}>
+        Anular
+      </Button>
+    </>
+  );
+
   // El PDF de la orden se puede descargar siempre (también aprobados y anulados)
   const acciones = (
     <>
       <BotonExportar reporte={`ordenes/${s.id}`} tipo="pdf" texto="Orden en PDF" variant="outlined" />
       {accionesRevision}
+      {accionesAprobado}
     </>
   );
 
@@ -386,7 +405,34 @@ export default function ServicioDetalle() {
       )}
       {dialogo === "aprobar" && <DialogoAprobar abierto onCerrar={() => setDialogo(null)} onListo={terminar} servicio={s} />}
       {dialogo === "anular" && (
-        <DialogoMotivo abierto onCerrar={() => setDialogo(null)} onListo={terminar} servicio={s} estado="anulado" titulo="Anular" textoBoton="Anular servicio" color="error" />
+        <DialogoMotivo
+          abierto
+          onCerrar={() => setDialogo(null)}
+          onListo={terminar}
+          servicio={s}
+          estado="anulado"
+          titulo="Anular"
+          textoBoton="Anular servicio"
+          color="error"
+          explicacion={
+            aprobado
+              ? `Este servicio ya está APROBADO por ${formatoMoneda(s.valor_aprobado)}. Al anularlo deja de sumar en los reportes. No se puede deshacer.`
+              : "El servicio deja de sumar en los reportes. No se puede deshacer."
+          }
+        />
+      )}
+      {dialogo === "reabrir" && (
+        <DialogoMotivo
+          abierto
+          onCerrar={() => setDialogo(null)}
+          onListo={terminar}
+          servicio={s}
+          estado="en_revision"
+          titulo="Reabrir"
+          textoBoton="Reabrir servicio"
+          color="warning"
+          explicacion={`El servicio vuelve a "En revisión" y se quita la aprobación (${formatoMoneda(s.valor_aprobado)}). Luego podrá corregirlo y aprobarlo de nuevo. La aprobación anterior queda en la bitácora.`}
+        />
       )}
       {dialogo === "devolver" && (
         <DialogoMotivo

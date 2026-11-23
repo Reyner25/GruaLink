@@ -39,7 +39,7 @@ const ENTIDADES = {
   tipos_vehiculo: "Tipos de vehículo",
   tipos_servicio: "Tipos de servicio",
 };
-const OPERACIONES = ["crear", "actualizar", "finalizar", "aprobar", "anular", "autorizar_correccion", "iniciar_turno", "finalizar_turno", "cerrar_turno"];
+const OPERACIONES = ["crear", "actualizar", "finalizar", "aprobar", "anular", "autorizar_correccion", "reabrir", "iniciar_turno", "finalizar_turno", "cerrar_turno"];
 const POR_PAGINA = 50;
 
 // Resumen corto de qué cambió: "km_servicio: 0 → 17.5"

@@ -29,6 +29,8 @@ Archivo revisado: `REGISTRO TOTAL SERVICIOS DE GRUAS VIGENTE.xlsx` (7.745 servic
 | `004_servicios_y_bitacora.sql` | Secuencia del número de orden, `observaciones_entrega`, `aprobado_por/en`, nuevas operaciones de bitácora, índices de sesiones |
 | `005_historial_estado_gruas.sql` | Historial de estados de grúas, necesario para el reporte "Promedio de grúas" |
 | `006_numeracion_orden_desde_1.sql` | Corrige la 004: la numeración digital arranca en **1** (antes 10000, que chocaba con talonarios en papel ya usados) |
+| `007_vehiculo_otro_y_rescate.sql` | Tipo de vehículo "Otro" (con descripción), rescate según el tipo de servicio, conceptos que solo registra el administrador |
+| `008_bitacora_reabrir.sql` | Nueva operación de bitácora `reabrir` (servicio aprobado que vuelve a revisión). No cambia datos |
 
 Antes de migrar se sacó un respaldo completo en `respaldos/` (excluida del repositorio).
 

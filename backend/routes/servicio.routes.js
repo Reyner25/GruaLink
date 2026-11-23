@@ -7,6 +7,7 @@
  *  POST  /                operador crea un servicio (requiere turno activo)
  *  POST  /:id/finalizar   operador finaliza SU servicio (una sola vez)
  *  PATCH /:id/estado      administrador: en_revision, devolver a finalizado, anular {estado, motivo}
+ *                         aprobado → en_revision (reabrir) o anulado: motivo obligatorio
  *  POST  /:id/aprobar     administrador aprueba {valor_aprobado?, motivo?}
  *  POST  /:id/corregir    administrador corrige datos {…campos, conceptos?, motivo} → recalcula
  *

@@ -40,7 +40,9 @@ const TRANSICIONES = {
   // por ejemplo un servicio duplicado detectado en la revisión. Exige motivo.
   finalizado: ["en_revision", "anulado"],
   en_revision: ["aprobado", "finalizado", "anulado"],
-  aprobado: [],
+  // Un aprobado se puede REABRIR (vuelve a revisión para corregirlo y aprobarlo
+  // de nuevo) o ANULAR. Solo el administrador y siempre con motivo.
+  aprobado: ["en_revision", "anulado"],
   anulado: [],
 };
 
@@ -236,6 +238,12 @@ const ServicioService = {
   /**
    * Cambio de estado por el administrador: pasar a revisión, devolver a
    * finalizado, anular. (Aprobar tiene su propio método porque exige valor.)
+   *
+   * Servicios APROBADOS (motivo siempre obligatorio):
+   *  - Reabrir (→ en_revision): se borran valor aprobado, quién y cuándo, para
+   *    que deje de contar como aprobado; quedan guardados en la bitácora.
+   *    Después se corrige y se aprueba otra vez con el flujo normal.
+   *  - Anular (→ anulado): se conservan los datos de la aprobación como historia.
    */
   async cambiarEstado({ id, nuevoEstado, usuarioId, motivo }) {
     if (nuevoEstado === "aprobado") {
@@ -249,14 +257,27 @@ const ServicioService = {
       if (!actual) throw errorNegocio(404, "SERVICIO_NO_EXISTE", "El servicio no existe");
       validarTransicion(actual.estado, nuevoEstado);
 
-      const actualizado = await ServicioModel.actualizarEstado(client, id, nuevoEstado);
+      const reabrir = actual.estado === "aprobado" && nuevoEstado === "en_revision";
+      if (actual.estado === "aprobado" && !motivo) {
+        throw errorNegocio(422, "MOTIVO_OBLIGATORIO", `Para ${reabrir ? "reabrir" : "anular"} un servicio aprobado debe escribir el motivo`);
+      }
+
+      const actualizado = reabrir
+        ? await ServicioModel.reabrir(client, id)
+        : await ServicioModel.actualizarEstado(client, id, nuevoEstado);
+
+      // Para los aprobados, la bitácora guarda también la aprobación que había
+      const aprobacion =
+        actual.estado === "aprobado"
+          ? { valor_aprobado: actual.valor_aprobado, aprobado_por: actual.aprobado_por, aprobado_en: actual.aprobado_en }
+          : {};
       await BitacoraModel.registrar(client, {
         usuarioId,
         entidad: "servicios",
         registroId: id,
-        operacion: nuevoEstado === "anulado" ? "anular" : "actualizar",
-        anteriores: { estado: actual.estado },
-        nuevos: { estado: nuevoEstado },
+        operacion: nuevoEstado === "anulado" ? "anular" : reabrir ? "reabrir" : "actualizar",
+        anteriores: { estado: actual.estado, ...aprobacion },
+        nuevos: reabrir ? { estado: nuevoEstado, valor_aprobado: null, aprobado_por: null, aprobado_en: null } : { estado: nuevoEstado },
         motivo,
       });
       return actualizado;

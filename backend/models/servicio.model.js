@@ -148,6 +148,17 @@ const ServicioModel = {
     return this.obtenerPorId(id, { client });
   },
 
+  // Reabrir un aprobado: vuelve a revisión y deja de contar como aprobado
+  async reabrir(client, id) {
+    await client.query(
+      `UPDATE servicios
+       SET estado = 'en_revision', valor_aprobado = NULL, aprobado_por = NULL, aprobado_en = NULL
+       WHERE id = $1`,
+      [id],
+    );
+    return this.obtenerPorId(id, { client });
+  },
+
   async listarAbiertosDeTurno(turnoId, { client = pool } = {}) {
     const { rows } = await client.query(
       `SELECT id, numero_orden, estado FROM servicios
