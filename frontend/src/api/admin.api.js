@@ -91,6 +91,33 @@ export async function cambiarPasswordUsuario(id, password, motivo) {
   await api.post(`/usuarios/${id}/password`, { password, motivo: motivo || undefined });
 }
 
+// ---------- Exportar a Excel ----------
+/**
+ * Descarga un Excel generado por el backend y lo guarda en el equipo.
+ * reporte: "servicios" | "promedio-gruas"
+ * El nombre del archivo lo pone el servidor (Content-Disposition).
+ */
+export async function descargarExcel(reporte, filtros) {
+  const respuesta = await api.get(`/exportar/${reporte}`, {
+    params: limpiar(filtros),
+    responseType: "blob",
+    timeout: 120000, // un año de servicios puede tardar unos segundos
+  });
+  const cabecera = respuesta.headers["content-disposition"] || "";
+  const nombre = cabecera.match(/filename="([^"]+)"/)?.[1] || `GruaLink_${reporte}.xlsx`;
+
+  // Truco estándar para descargar: un enlace temporal al archivo en memoria
+  const url = URL.createObjectURL(respuesta.data);
+  const enlace = document.createElement("a");
+  enlace.href = url;
+  enlace.download = nombre;
+  document.body.appendChild(enlace);
+  enlace.click();
+  enlace.remove();
+  URL.revokeObjectURL(url);
+  return nombre;
+}
+
 // ---------- Catálogos para filtros ----------
 export async function listarUsuarios(filtros) {
   const { data } = await api.get("/usuarios", { params: limpiar(filtros) });

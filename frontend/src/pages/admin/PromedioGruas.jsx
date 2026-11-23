@@ -14,6 +14,7 @@ import { promedioGruas } from "../../api/admin.api";
 import { formatoFecha, formatoNumero, hoy } from "../../utils/formato";
 import { EncabezadoPagina, Indicador, Panel } from "../../components/admin/Comunes";
 import GraficoBarras from "../../components/admin/GraficoBarras";
+import BotonExportar from "../../components/admin/BotonExportar";
 import { Cargando, ErrorCarga } from "../../components/operador/Comunes";
 
 function haceDias(n) {
@@ -40,6 +41,7 @@ export default function PromedioGruas() {
         titulo="Promedio de grúas"
         descripcion="Grúas en operación, en mantenimiento e inactivas por día, y su disponibilidad."
         migas={[{ texto: "Reportes" }, { texto: "Promedio de grúas" }]}
+        acciones={<BotonExportar reporte="promedio-gruas" filtros={{ desde, hasta }} />}
       />
       <Card sx={{ mb: 3 }}>
         <CardContent>

@@ -25,6 +25,7 @@ import { EncabezadoPagina, Indicador, Panel } from "../../components/admin/Comun
 import Filtros from "../../components/admin/Filtros";
 import { useFiltrosUrl } from "../../hooks/useFiltrosUrl";
 import GraficoBarras from "../../components/admin/GraficoBarras";
+import BotonExportar from "../../components/admin/BotonExportar";
 import { Cargando, ErrorCarga } from "../../components/operador/Comunes";
 
 const inicioDeMes = () => `${hoy().slice(0, 8)}01`;
@@ -66,9 +67,12 @@ export default function Dashboard() {
         titulo="Panel de control"
         descripcion="Resumen de la operación de grúas en el periodo seleccionado."
         acciones={
-          <Button variant="contained" onClick={() => navigate(`/admin/servicios?estado=finalizado`)}>
-            Servicios por revisar
-          </Button>
+          <>
+            <BotonExportar reporte="servicios" filtros={filtros} variant="outlined" />
+            <Button variant="contained" onClick={() => navigate(`/admin/servicios?estado=finalizado`)}>
+              Servicios por revisar
+            </Button>
+          </>
         }
       />
       <Filtros filtros={filtros} cambiar={cambiar} limpiar={limpiar} />

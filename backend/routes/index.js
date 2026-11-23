@@ -11,6 +11,7 @@ const gruaRoutes = require("./grua.routes");
 const usuarioRoutes = require("./usuario.routes");
 const tarifaRoutes = require("./tarifa.routes");
 const reportes = require("./reportes.routes");
+const exportarRoutes = require("./exportar.routes");
 
 const router = Router();
 
@@ -33,5 +34,6 @@ router.use("/precios-concepto", tarifaRoutes.preciosConcepto);
 // Reportes y auditoría
 router.use("/dashboard", reportes.dashboard);
 router.use("/bitacora", reportes.bitacora);
+router.use("/exportar", exportarRoutes); // descargas en Excel
 
 module.exports = router;

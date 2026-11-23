@@ -79,9 +79,27 @@ Cada pantalla solo **describe** el recurso; el componente lista, busca, crea, ed
 
 Se borraron las pantallas del panel anterior (`PanelPage`, `ListadoOrdenesPage`, `DetalleOrdenPage`, `MonitoreoPage`, `InicioPage`, `OrdenServicioPage`, `LayoutPrincipal`, `components/ordenes/*`) y archivos sobrantes de la plantilla de Vite. Siguen en el historial de git (commit `092a53d` y anteriores).
 
-## 6. Pendiente / ideas
+## 6. Exportar a Excel (23/11/2026)
 
-- Exportar a Excel los listados y reportes ("Exportar reporte" de la maqueta).
+Botón **"Exportar a Excel"** en *Inicio*, *Servicios* y *Promedio de grúas*. Exporta **todos** los registros del filtro actual (no solo la página visible).
+
+| Endpoint | Hojas | Notas |
+|---|---|---|
+| `GET /api/exportar/servicios` (mismos filtros del dashboard) | **Servicios** (una fila por servicio, 35 columnas: orden, fechas, cliente, operador, grúa, vehículo, tiempos de reacción y duración, km, valores, aprobación, entrega, observaciones) y **Trabajos adicionales** (detalle de conceptos) | Máx. 20.000 filas. Los anulados no llevan valores (igual que el dashboard) |
+| `GET /api/exportar/promedio-gruas?desde&hasta` | **Promedio de grúas** por día | Máx. 1 año |
+
+Características del archivo:
+- Fechas y horas como **fechas reales de Excel** (se pueden ordenar y filtrar), en **hora de Colombia** (verificado contra la base).
+- Valores con formato **$ #.###**, encabezado azul oscuro congelado, **filtros de Excel** activados.
+- Fila **TOTAL** con `SUBTOTAL(9, …)`: suma solo las filas visibles cuando se filtra en Excel.
+- Permisos: administrador y financiero (`reportes:ver`). El operador recibe 403.
+
+Código: `backend/services/excel.service.js` (genérico: `crearExcel({ titulo, hojas })` sirve para cualquier reporte nuevo), `backend/models/exportar.model.js`, `backend/routes/exportar.routes.js`, `frontend/src/components/admin/BotonExportar.jsx`.
+
+Librería nueva: **ExcelJS 4.4.0** (MIT). `npm audit` reporta 2 avisos moderados en `uuid` (dependencia interna de ExcelJS para identificadores del archivo; no recibe datos del usuario) y 2 en `nodemon` (solo desarrollo). Revisar en la Etapa 7.
+
+## 7. Pendiente / ideas
+
 - Reportes por operador y por cliente en pantalla propia (el backend ya tiene `/api/dashboard/por/operador` y `/por/cliente`).
 - Cierre de turnos olvidados desde el panel (el backend ya tiene `POST /api/turnos/:id/cerrar`).
 - Pantalla de configuración (porcentaje del operador, horas de corte del recargo nocturno) cuando se definan P11 y P17.

@@ -147,3 +147,5 @@ const DashboardModel = {
 };
 
 module.exports = DashboardModel;
+// Se reutiliza en la exportación a Excel (mismos filtros que el dashboard)
+module.exports.filtrosServicios = filtrosServicios;

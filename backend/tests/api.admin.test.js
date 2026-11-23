@@ -398,6 +398,55 @@ test("dashboard: indicadores reales desde SQL, filtrados por cliente", async () 
   assert.strictEqual(porOp.datos.filas[0].servicios, 3);
 });
 
+test("exportar a Excel: mismos servicios del filtro, fechas reales, totales y anulados sin valor", async () => {
+  const ExcelJS = require("exceljs");
+  const descargar = async (ruta, token) => {
+    const r = await fetch(`${base}${ruta}`, { headers: { Authorization: `Bearer ${token}` } });
+    return { status: r.status, tipo: r.headers.get("content-type"), nombre: r.headers.get("content-disposition"), buffer: Buffer.from(await r.arrayBuffer()) };
+  };
+
+  // El operador no puede exportar
+  assert.strictEqual((await descargar(`/api/exportar/servicios?cliente_id=${ids.cliente}`, tk.op)).status, 403);
+
+  // El financiero sí
+  const r = await descargar(`/api/exportar/servicios?cliente_id=${ids.cliente}&desde=${ids.hoy}&hasta=${ids.hoy}`, tk.fin);
+  assert.strictEqual(r.status, 200);
+  assert.match(r.tipo, /spreadsheetml/);
+  assert.match(r.nombre, /GruaLink_servicios_.*\.xlsx/);
+
+  const libro = new ExcelJS.Workbook();
+  await libro.xlsx.load(r.buffer);
+  const hoja = libro.getWorksheet("Servicios");
+  assert.ok(libro.getWorksheet("Trabajos adicionales"));
+  const titulos = hoja.getRow(1).values;
+  const col = (t) => titulos.indexOf(t);
+
+  // 3 servicios del cliente de prueba + encabezado + fila TOTAL
+  assert.strictEqual(hoja.rowCount, 5);
+  const filas = [2, 3, 4].map((n) => hoja.getRow(n));
+  const porEstado = Object.fromEntries(filas.map((f) => [f.getCell(col("Estado")).value, f]));
+  assert.ok(porEstado.Aprobado && porEstado.Anulado);
+
+  // Fecha como fecha real de Excel (no texto)
+  assert.ok(filas[0].getCell(col("Fecha")).value instanceof Date);
+  // El anulado no lleva dinero
+  assert.strictEqual(porEstado.Anulado.getCell(col("Valor calculado")).value, null);
+  // Valor aprobado del servicio corregido y aprobado en esta corrida: 650.000
+  const aprobados = filas.map((f) => f.getCell(col("Valor aprobado")).value).filter((v) => v !== null);
+  assert.ok(aprobados.includes(650000));
+  // Fila de totales con fórmula
+  const total = hoja.getRow(5);
+  assert.strictEqual(total.getCell(1).value, "TOTAL");
+  assert.match(total.getCell(col("Valor aprobado")).value.formula, /SUBTOTAL\(9,/);
+
+  // Promedio de grúas
+  const p = await descargar(`/api/exportar/promedio-gruas?desde=${ids.ayer}&hasta=${ids.hoy}`, tk.admin);
+  assert.strictEqual(p.status, 200);
+  const libroP = new ExcelJS.Workbook();
+  await libroP.xlsx.load(p.buffer);
+  assert.strictEqual(libroP.getWorksheet("Promedio de grúas").rowCount, 3); // encabezado + 2 días
+});
+
 test("promedio de grúas por día", async () => {
   const r = await api("GET", `/api/dashboard/promedio-gruas?desde=${ids.ayer}&hasta=${ids.hoy}`, { token: tk.admin });
   assert.strictEqual(r.status, 200, JSON.stringify(r.datos));

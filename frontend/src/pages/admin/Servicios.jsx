@@ -25,6 +25,7 @@ import { useCargar } from "../../hooks/useCargar";
 import { listarServiciosAdmin } from "../../api/admin.api";
 import { formatoFecha, formatoHora, formatoMoneda } from "../../utils/formato";
 import { EncabezadoPagina } from "../../components/admin/Comunes";
+import BotonExportar from "../../components/admin/BotonExportar";
 import Filtros from "../../components/admin/Filtros";
 import { useFiltrosUrl } from "../../hooks/useFiltrosUrl";
 import { Cargando, ErrorCarga, EstadoServicio } from "../../components/operador/Comunes";
@@ -55,7 +56,13 @@ export default function Servicios() {
 
   return (
     <>
-      <EncabezadoPagina titulo="Servicios" descripcion="Revisión, corrección y aprobación de los servicios registrados." migas={[{ texto: "Servicios" }]} />
+      <EncabezadoPagina
+        titulo="Servicios"
+        descripcion="Revisión, corrección y aprobación de los servicios registrados."
+        migas={[{ texto: "Servicios" }]}
+        // Exporta TODOS los servicios del filtro (no solo esta página)
+        acciones={<BotonExportar reporte="servicios" filtros={filtros} />}
+      />
       <Filtros filtros={filtros} cambiar={cambiarFiltro} limpiar={limpiar} />
 
       <Card>
