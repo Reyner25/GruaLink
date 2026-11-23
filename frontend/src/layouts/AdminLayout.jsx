@@ -33,6 +33,11 @@ import AssignmentIcon from "@mui/icons-material/Assignment";
 import InsightsIcon from "@mui/icons-material/Insights";
 import HistoryEduIcon from "@mui/icons-material/HistoryEdu";
 import LogoutIcon from "@mui/icons-material/Logout";
+import PriceChangeIcon from "@mui/icons-material/PriceChange";
+import BusinessIcon from "@mui/icons-material/Business";
+import LocalShippingIcon from "@mui/icons-material/LocalShipping";
+import ListAltIcon from "@mui/icons-material/ListAlt";
+import PeopleIcon from "@mui/icons-material/People";
 import { useAuth } from "../context/AuthContext";
 import { puede } from "../utils/roles";
 import Marca from "../components/Marca";
@@ -44,6 +49,12 @@ const MENU = [
   { seccion: "Operación" },
   { texto: "Inicio", ruta: "/admin", icono: <DashboardIcon />, exacta: true },
   { texto: "Servicios", ruta: "/admin/servicios", icono: <AssignmentIcon /> },
+  { seccion: "Administración" },
+  { texto: "Tarifas", ruta: "/admin/tarifas", icono: <PriceChangeIcon />, permiso: "tarifas:ver" },
+  { texto: "Clientes", ruta: "/admin/clientes", icono: <BusinessIcon />, permiso: "clientes:ver" },
+  { texto: "Grúas", ruta: "/admin/gruas", icono: <LocalShippingIcon />, permiso: "gruas:ver" },
+  { texto: "Catálogos", ruta: "/admin/catalogos", icono: <ListAltIcon />, permiso: "catalogos:ver" },
+  { texto: "Usuarios", ruta: "/admin/usuarios", icono: <PeopleIcon />, permiso: "usuarios:gestionar" },
   { seccion: "Reportes" },
   { texto: "Promedio de grúas", ruta: "/admin/reportes/promedio-gruas", icono: <InsightsIcon /> },
   { seccion: "Control" },

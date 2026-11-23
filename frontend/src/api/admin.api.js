@@ -54,6 +54,43 @@ export async function consultarBitacora(filtros) {
   return data.registros;
 }
 
+// ---------- Recursos administrables (genérico) ----------
+// ruta: "/clientes", "/gruas", "/usuarios", "/tarifas", "/precios-concepto",
+//       "/tipos-vehiculo", "/tipos-servicio", "/conceptos"
+// clave: nombre de la lista en la respuesta ("clientes"); claveUno: en singular
+export async function listarRecurso(ruta, clave, filtros) {
+  const { data } = await api.get(ruta, { params: limpiar({ limite: 500, ...filtros }) });
+  return data[clave];
+}
+
+export async function crearRecurso(ruta, claveUno, datos) {
+  const { data } = await api.post(ruta, datos);
+  return data[claveUno];
+}
+
+export async function actualizarRecurso(ruta, claveUno, id, cambios) {
+  const { data } = await api.patch(`${ruta}/${id}`, cambios);
+  return data[claveUno];
+}
+
+export async function eliminarRecurso(ruta, id, motivo) {
+  await api.delete(`${ruta}/${id}`, { data: { motivo } });
+}
+
+export async function cambiarEstadoGrua(id, estado, motivo) {
+  const { data } = await api.post(`/gruas/${id}/estado`, { estado, motivo });
+  return data.grua;
+}
+
+export async function historialGrua(id) {
+  const { data } = await api.get(`/gruas/${id}/historial`);
+  return data.historial;
+}
+
+export async function cambiarPasswordUsuario(id, password, motivo) {
+  await api.post(`/usuarios/${id}/password`, { password, motivo: motivo || undefined });
+}
+
 // ---------- Catálogos para filtros ----------
 export async function listarUsuarios(filtros) {
   const { data } = await api.get("/usuarios", { params: limpiar(filtros) });

@@ -1,0 +1,45 @@
+/**
+ * Administración de clientes. No se borran: se desactivan (los servicios
+ * históricos siguen apuntando a ellos).
+ */
+import { Chip } from "@mui/material";
+import { useAuth } from "../../context/AuthContext";
+import { puede } from "../../utils/roles";
+import { EncabezadoPagina } from "../../components/admin/Comunes";
+import CrudCatalogo from "../../components/admin/CrudCatalogo";
+
+const activo = (f) => <Chip size="small" label={f.activo ? "Activo" : "Inactivo"} color={f.activo ? "success" : "default"} variant={f.activo ? "filled" : "outlined"} />;
+
+export default function Clientes() {
+  const { usuario } = useAuth();
+  return (
+    <>
+      <EncabezadoPagina titulo="Clientes" descripcion="Empresas a las que se les presta el servicio de grúa." migas={[{ texto: "Clientes" }]} />
+      <CrudCatalogo
+        ruta="/clientes"
+        clave="clientes"
+        claveUno="cliente"
+        titulo="Cliente"
+        puedeEditar={puede(usuario, "catalogos:gestionar")}
+        buscarEn={["nombre_comercial", "razon_social", "nit"]}
+        columnas={[
+          { campo: "nombre_comercial", titulo: "Nombre comercial", render: (f) => f.nombre_comercial || f.razon_social },
+          { campo: "razon_social", titulo: "Razón social" },
+          { campo: "nit", titulo: "NIT" },
+          { campo: "telefono", titulo: "Teléfono" },
+          { campo: "email", titulo: "Correo" },
+          { campo: "activo", titulo: "Estado", render: activo },
+        ]}
+        campos={[
+          { campo: "razon_social", etiqueta: "Razón social", tipo: "texto", requerido: true },
+          { campo: "nit", etiqueta: "NIT", tipo: "texto", requerido: true, ayuda: "Solo números; opcional guion y dígito de verificación (900123456-7)" },
+          { campo: "nombre_comercial", etiqueta: "Nombre comercial", tipo: "texto", nulable: true, ayuda: "Nombre corto que verá el operador en el celular" },
+          { campo: "telefono", etiqueta: "Teléfono", tipo: "texto", nulable: true },
+          { campo: "email", etiqueta: "Correo electrónico", tipo: "email", nulable: true },
+          { campo: "direccion", etiqueta: "Dirección", tipo: "texto", nulable: true },
+          { campo: "activo", etiqueta: "Activo (aparece en el celular)", tipo: "booleano" },
+        ]}
+      />
+    </>
+  );
+}

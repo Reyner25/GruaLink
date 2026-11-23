@@ -95,14 +95,19 @@ const CAMPOS = {
 };
 const ES_DINERO = ["valor_tarifa_basica", "valor_conceptos", "valor_calculado", "valor_aprobado"];
 
-function valorLegible(campo, v) {
+const ES_NUMERO = ["km_vacio", "km_servicio", "km_facturables"];
+
+// nombres: { concepto_id: "Desmontar cardán" } para mostrar nombres en vez de números
+function valorLegible(campo, v, nombres = {}) {
   if (v === null || v === undefined) return "—";
   if (ES_DINERO.includes(campo)) return formatoMoneda(v);
-  if (campo === "conceptos") return v.map((c) => `#${c.concepto_id} × ${formatoNumero(c.cantidad)}`).join(", ") || "ninguno";
+  if (ES_NUMERO.includes(campo)) return formatoNumero(v);
+  if (campo === "conceptos")
+    return v.map((c) => `${nombres[c.concepto_id] || `#${c.concepto_id}`} × ${formatoNumero(c.cantidad)}`).join(", ") || "ninguno";
   return String(v);
 }
 
-function Bitacora({ servicioId, version }) {
+function Bitacora({ servicioId, version, nombresConceptos }) {
   const { datos, cargando, error } = useCargar(() => consultarBitacora({ entidad: "servicios", registro_id: servicioId, limite: 100 }), [servicioId, version]);
   if (cargando && !datos) return <Cargando />;
   if (error) return <Alert severity="error">{error}</Alert>;
@@ -127,7 +132,8 @@ function Bitacora({ servicioId, version }) {
             )}
             {cambios.map((c) => (
               <Typography key={c} variant="caption" component="div">
-                {CAMPOS[c]}: {valorLegible(c, b.valores_anteriores?.[c])} → <b>{valorLegible(c, b.valores_nuevos[c])}</b>
+                {CAMPOS[c]}: {valorLegible(c, b.valores_anteriores?.[c], nombresConceptos)} →{" "}
+                <b>{valorLegible(c, b.valores_nuevos[c], nombresConceptos)}</b>
               </Typography>
             ))}
           </Box>
@@ -248,7 +254,7 @@ export default function ServicioDetalle() {
                     {s.numero_vehiculo ? ` · N.º ${s.numero_vehiculo}` : ""}
                   </Dato>
                   <Dato etiqueta="Tipo de servicio">
-                    {s.tipo_servicio} {s.es_rescate && <Chip size="small" label="Rescate" sx={{ ml: 1 }} />}
+                    {s.tipo_servicio}
                   </Dato>
                   <Dato etiqueta="Origen">{s.origen}</Dato>
                   <Dato etiqueta="Destino">{s.destino}</Dato>
@@ -343,7 +349,11 @@ export default function ServicioDetalle() {
         <Grid size={{ xs: 12, lg: 4 }}>
           {puede(usuario, "bitacora:ver") ? (
             <Panel titulo="Historial (bitácora)">
-              <Bitacora servicioId={s.id} version={version} />
+              <Bitacora
+                servicioId={s.id}
+                version={version}
+                nombresConceptos={Object.fromEntries((catalogos.datos?.conceptos || []).map((c) => [c.id, c.nombre]))}
+              />
             </Panel>
           ) : (
             <Card>

@@ -21,6 +21,11 @@ import Servicios from "./pages/admin/Servicios";
 import ServicioDetalle from "./pages/admin/ServicioDetalle";
 import PromedioGruas from "./pages/admin/PromedioGruas";
 import Bitacora from "./pages/admin/Bitacora";
+import Clientes from "./pages/admin/Clientes";
+import Gruas from "./pages/admin/Gruas";
+import Usuarios from "./pages/admin/Usuarios";
+import Tarifas from "./pages/admin/Tarifas";
+import Catalogos from "./pages/admin/Catalogos";
 import InicioOperador from "./pages/operador/InicioOperador";
 import IniciarTurno from "./pages/operador/IniciarTurno";
 import FinalizarTurno from "./pages/operador/FinalizarTurno";
@@ -78,6 +83,11 @@ export default function App() {
         <Route path="servicios" element={<Servicios />} />
         <Route path="servicios/:id" element={<ServicioDetalle />} />
         <Route path="reportes/promedio-gruas" element={<PromedioGruas />} />
+        <Route path="tarifas" element={<Tarifas />} />
+        <Route path="clientes" element={<Clientes />} />
+        <Route path="gruas" element={<Gruas />} />
+        <Route path="catalogos" element={<Catalogos />} />
+        <Route path="usuarios" element={<RutaProtegida roles={["administrador"]}><Usuarios /></RutaProtegida>} />
         <Route path="bitacora" element={<RutaProtegida roles={["administrador"]}><Bitacora /></RutaProtegida>} />
       </Route>
 
