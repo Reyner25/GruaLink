@@ -1,0 +1,37 @@
+# Servicio de GruaLink (systemd). Lo instala deploy/linux/instalar.sh en
+# /etc/systemd/system/. Arranca solo al encender el servidor y se reinicia
+# si el proceso falla.
+#   Estado:    systemctl status grualink
+#   Registro:  journalctl -u grualink -f
+#   Reiniciar: sudo systemctl restart grualink
+[Unit]
+Description=GruaLink (API + app web)
+After=network.target postgresql.service
+Wants=postgresql.service
+
+[Service]
+Type=simple
+User=grualink
+Group=grualink
+WorkingDirectory=/opt/grualink/backend
+# La configuración (.env) la lee la app desde WorkingDirectory
+Environment=TZ=America/Bogota
+ExecStart=/usr/bin/node server.js
+Restart=always
+RestartSec=5
+# server.js cierra ordenadamente con SIGTERM (termina peticiones en curso)
+KillSignal=SIGTERM
+TimeoutStopSec=15
+
+# Endurecimiento: el proceso no puede ganar privilegios ni escribir en el sistema
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+
+[Install]
+WantedBy=multi-user.target

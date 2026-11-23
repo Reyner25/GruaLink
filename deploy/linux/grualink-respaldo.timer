@@ -1,0 +1,13 @@
+# Programa el respaldo diario de GruaLink a las 23:30 (hora del servidor:
+# America/Bogota). Si el servidor estaba apagado a esa hora, el respaldo se
+# hace apenas vuelva a encender (Persistent=true).
+#   Próxima ejecución:  systemctl list-timers grualink-respaldo.timer
+[Unit]
+Description=Respaldo diario de GruaLink
+
+[Timer]
+OnCalendar=*-*-* 23:30:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target

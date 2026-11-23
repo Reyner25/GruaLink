@@ -1,0 +1,4 @@
+# Los scripts y archivos de configuración de Linux deben tener saltos de
+# línea LF aunque se editen en Windows (con CRLF, bash falla en el servidor).
+*.sh text eol=lf
+deploy/linux/* text eol=lf

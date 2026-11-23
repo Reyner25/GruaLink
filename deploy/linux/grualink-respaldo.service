@@ -1,0 +1,17 @@
+# Respaldo de la base de GruaLink (lo ejecuta grualink-respaldo.timer).
+# Respaldo manual en cualquier momento:  sudo systemctl start grualink-respaldo
+# Resultado:                             journalctl -u grualink-respaldo -n 20
+[Unit]
+Description=Respaldo de la base de datos de GruaLink
+After=postgresql.service
+
+[Service]
+Type=oneshot
+User=grualink
+Group=grualink
+WorkingDirectory=/opt/grualink/backend
+Environment=TZ=America/Bogota
+# Carpeta, retención y usuario dueño de la base: ver RESPALDOS_* y DATABASE_URL_ADMIN en .env
+ExecStart=/usr/bin/node scripts/respaldo.js
+NoNewPrivileges=true
+PrivateTmp=true

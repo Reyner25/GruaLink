@@ -28,8 +28,10 @@ const app = crearApp({
   https: config.https,
 });
 
-const servidor = app.listen(config.puerto, () => {
-  console.log(`GruaLink ${config.produccion ? "PRODUCCIÓN" : "desarrollo"} escuchando en puerto ${config.puerto}`);
+const servidor = app.listen(config.puerto, config.host, () => {
+  console.log(
+    `GruaLink ${config.produccion ? "PRODUCCIÓN" : "desarrollo"} escuchando en puerto ${config.puerto}${config.host ? ` (${config.host})` : ""}`,
+  );
   if (config.produccion) console.log(`  App web: ${config.frontendDist}`);
 });
 const detenerMantenimiento = iniciarMantenimiento();

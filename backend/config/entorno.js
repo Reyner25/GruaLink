@@ -28,7 +28,7 @@ function leerEntorno() {
       const usuario = decodeURIComponent(new URL(process.env.DATABASE_URL).username);
       if (usuario === "postgres") {
         avisos.push(
-          "La API se conecta como 'postgres' (superusuario). En producción use el usuario con permisos mínimos (scripts/crear-usuario-app.sql).",
+          "La API se conecta como 'postgres' (superusuario). En producción use el usuario con permisos mínimos (npm run crear-usuario-app).",
         );
       }
     } catch {
@@ -47,6 +47,9 @@ function leerEntorno() {
     config: {
       produccion: esProduccion(),
       puerto: Number(process.env.PORT || 4000),
+      // Dirección donde escucha. Vacío = todas (red local). En la nube, "127.0.0.1":
+      // solo el proxy HTTPS (Caddy) del mismo servidor puede llegar a la API.
+      host: process.env.HOST || undefined,
       ttlSesionHoras: ttl,
       frontendDist: hayFrontend ? dist : null,
       // Cantidad de proxies delante de la API ("1"), o "loopback" si el proxy está en el mismo equipo

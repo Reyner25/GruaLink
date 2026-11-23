@@ -18,6 +18,10 @@
  * Usa DATABASE_URL_ADMIN si existe; si no, DATABASE_URL.
  * Se puede repetir (ej. después de una migración que agrega tablas): vuelve
  * a aplicar los permisos y, si se escribe una contraseña, la cambia.
+ *
+ *   npm run crear-usuario-app -- --solo-permisos
+ *     No pregunta nada: solo vuelve a aplicar los permisos a un usuario que
+ *     ya existe (lo usan los scripts de instalación y actualización).
  */
 require("dotenv").config({ path: require("path").join(__dirname, "..", ".env"), quiet: true });
 const readline = require("readline");
@@ -64,6 +68,13 @@ async function main() {
   try {
     const { rows } = await cliente.query("SELECT 1 FROM pg_roles WHERE rolname = $1", [ROL]);
     const existe = Boolean(rows[0]);
+
+    if (process.argv.includes("--solo-permisos")) {
+      if (!existe) throw new Error(`El usuario ${ROL} no existe: ejecute "npm run crear-usuario-app" sin --solo-permisos.`);
+      await aplicarPermisos(cliente, base);
+      console.log(`✔ Permisos de ${ROL} aplicados en la base "${base}"`);
+      return;
+    }
 
     const clave = await preguntarOculto(
       existe ? `El usuario ${ROL} ya existe. Nueva contraseña (Enter = no cambiarla): ` : `Contraseña para ${ROL} (mín. 12 caracteres): `,

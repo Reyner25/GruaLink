@@ -1,0 +1,10 @@
+# Caddy: proxy HTTPS delante de GruaLink. instalar.sh lo copia a
+# /etc/caddy/Caddyfile reemplazando __DOMINIO__ por el dominio real.
+# Caddy obtiene y renueva solo el certificado (Let's Encrypt) y redirige
+# http:// a https://.
+#   Recargar tras un cambio:  sudo systemctl reload caddy
+__DOMINIO__ {
+	encode zstd gzip
+	# GruaLink escucha solo en 127.0.0.1 (no es accesible directamente desde internet)
+	reverse_proxy 127.0.0.1:4000
+}
