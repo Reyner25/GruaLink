@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # =============================================================================
-# Instalación de GruaLink en un servidor en la nube (VPS) con Ubuntu 24.04 LTS
+# Instalación de GruaLink en un servidor en la nube con Ubuntu 24.04 LTS
+# (máquina virtual de Azure u otro VPS). Guía: docs/INSTALAR-EN-LA-NUBE.md
 # =============================================================================
 #
 # Instala TODO lo necesario en un servidor nuevo y deja GruaLink funcionando
@@ -16,7 +17,7 @@
 #   1. El subdominio (ej. grualink.sotrandes.com) debe apuntar a la IP del
 #      servidor (registro DNS tipo A). Sin eso, Caddy no obtiene el certificado.
 #
-# Uso (conectado por SSH al servidor, como root):
+# Uso (conectado por SSH al servidor; en Azure el usuario es azureuser + sudo):
 #   curl -fsSL https://raw.githubusercontent.com/Reyner25/GruaLink/main/deploy/linux/instalar.sh -o instalar.sh
 #   sudo bash instalar.sh grualink.sotrandes.com
 #
@@ -71,6 +72,14 @@ fi
 
 paso "Actualizando el sistema e instalando herramientas básicas"
 export DEBIAN_FRONTEND=noninteractive NEEDRESTART_MODE=a
+# En una máquina recién creada (Azure, AWS…) cloud-init y las actualizaciones
+# automáticas usan apt los primeros minutos: esperar a que terminen y, por si
+# acaso, que apt espere el candado en vez de fallar.
+if command -v cloud-init >/dev/null; then
+  echo "  esperando que termine la configuración inicial de la máquina (cloud-init)…"
+  cloud-init status --wait >/dev/null 2>&1 || true
+fi
+echo 'DPkg::Lock::Timeout "600";' > /etc/apt/apt.conf.d/90grualink-espera-candado
 apt-get update -q
 apt-get upgrade -yq -o Dpkg::Options::=--force-confdef -o Dpkg::Options::=--force-confold
 apt-get install -yq curl ca-certificates gnupg git ufw openssl build-essential \

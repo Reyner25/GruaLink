@@ -1,6 +1,6 @@
 # GruaLink — Etapa 7: Preparación para producción
 
-> Fecha: 23/11/2026 · Estado: **la aplicación está lista para instalarse** en un VPS en la nube ([INSTALAR-EN-LA-NUBE.md](INSTALAR-EN-LA-NUBE.md)); falta contratar el servidor y el subdominio.
+> Fecha: 23/11/2026 (actualizado 24/11/2026) · Estado: **la aplicación está lista para instalarse** en una máquina virtual de **Azure**, empezando por la cuenta gratuita ([INSTALAR-EN-LA-NUBE.md](INSTALAR-EN-LA-NUBE.md)); falta crear la cuenta de Azure y, más adelante, el subdominio.
 
 ## 1. Qué se preparó (y se probó)
 
@@ -21,16 +21,16 @@
 
 **Prueba realizada (23/11/2026):** GruaLink en modo producción, conectado con `grualink_app` a la base de pruebas: salud ✔, app web ✔, rutas de React ✔, caché ✔, CSP ✔, login ✔, listado ✔, Excel ✔, crear cliente ✔; `grualink_app` **no** pudo modificar ni borrar la bitácora, crear o borrar tablas ni tocar `schema_migrations` ✔. En el navegador, la app cargó sin errores de CSP. 53/53 pruebas automáticas.
 
-## 2. ¿Dónde se instala? → **Decidido: opción B, VPS en la nube**
+## 2. ¿Dónde se instala? → **Decidido: opción B, máquina virtual Linux en Azure** (primero con la prueba gratuita)
 
-> **Guía de instalación: [INSTALAR-EN-LA-NUBE.md](INSTALAR-EN-LA-NUBE.md)** (un solo script, `deploy/linux/instalar.sh`). Las secciones 3 y 4 de este documento quedan como referencia por si algún día se instala en un servidor Windows.
+> **Guía de instalación: [INSTALAR-EN-LA-NUBE.md](INSTALAR-EN-LA-NUBE.md)** (cuenta gratuita de Azure + un solo script, `deploy/linux/instalar.sh`). Las secciones 3 y 4 de este documento quedan como referencia por si algún día se instala en un servidor Windows.
 
 Los operadores usan la app **desde el celular, fuera de la oficina**, así que el servidor debe ser accesible **desde internet con HTTPS**.
 
 | Opción | A favor | En contra |
 |---|---|---|
 | **A. Servidor Windows de SOTRANDES** (en la oficina) | Los datos quedan en la empresa; sin costo mensual | Requiere IP pública o túnel, abrir puerto 443, certificado, y que el equipo esté siempre encendido |
-| **B. Servidor en la nube** (VPS Linux, ~USD 6–12/mes) | Siempre disponible, IP pública, HTTPS sencillo con Caddy | Costo mensual; los datos salen de la oficina |
+| **B. Servidor en la nube** (máquina virtual Linux en Azure: gratis el primer año dentro de los límites de la cuenta gratuita, luego ~USD 10–20/mes) | Siempre disponible, IP pública, HTTPS sencillo con Caddy | Costo mensual; los datos salen de la oficina |
 | **C. Túnel** (Cloudflare Tunnel) + servidor de la oficina | HTTPS sin abrir puertos ni IP pública | Depende de un tercero; configuración inicial |
 
 La aplicación funciona igual en las tres. Los pasos de la sección 3 sirven para cualquiera; solo cambia cómo se publica con HTTPS (sección 4).
