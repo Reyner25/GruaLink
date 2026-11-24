@@ -16,6 +16,24 @@
       "cwd": "frontend",
       "env": { "GRUALINK_API": "http://localhost:4001", "GRUALINK_PUERTO": "5180" },
       "port": 5180
+    },
+    {
+      "name": "backend-pruebas-alt",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["server.js"],
+      "cwd": "backend",
+      "env": { "NODE_ENV": "test", "PORT": "4011" },
+      "port": 4011,
+      "autoPort": false
+    },
+    {
+      "name": "frontend-pruebas-alt",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev"],
+      "cwd": "frontend",
+      "env": { "GRUALINK_API": "http://localhost:4011", "GRUALINK_PUERTO": "5181" },
+      "port": 5181,
+      "autoPort": false
     }
   ]
 }

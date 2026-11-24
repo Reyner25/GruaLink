@@ -7,6 +7,8 @@
  *    ya cobraron servicios están bloqueadas (candado).
  *  - "Nueva vigencia": copia la tabla desde una fecha (ej. 2027) para cambiar
  *    valores sin tocar lo ya cobrado; la anterior se cierra el día antes.
+ *  - "Editar vigencia": cambiar las fechas (sin uso: inicio y fin, o borrar;
+ *    en uso: solo la fecha final).
  *  - Columna provisional: la que se usa mientras el mes está abierto.
  */
 import { useState } from "react";
@@ -36,8 +38,17 @@ import {
 } from "@mui/material";
 import LockIcon from "@mui/icons-material/Lock";
 import ContentCopyIcon from "@mui/icons-material/ContentCopy";
+import EventIcon from "@mui/icons-material/Event";
 import { useCargar } from "../../hooks/useCargar";
-import { actualizarCeldaBolsa, cambiarProvisionalBolsa, clientesConBolsa, nuevaVigenciaBolsa, tablaBolsaKm } from "../../api/admin.api";
+import {
+  actualizarCeldaBolsa,
+  borrarVigenciaBolsa,
+  cambiarProvisionalBolsa,
+  clientesConBolsa,
+  editarVigenciaBolsa,
+  nuevaVigenciaBolsa,
+  tablaBolsaKm,
+} from "../../api/admin.api";
 import { formatoFecha, formatoMoneda, formatoNumero, hoy, mensajeError } from "../../utils/formato";
 import { Cargando, ErrorCarga } from "../operador/Comunes";
 
@@ -155,6 +166,90 @@ function DialogoVigencia({ clienteId, vigencia, onCerrar, onListo }) {
   );
 }
 
+/**
+ * Editar la vigencia de una tabla. Sin uso: inicio y fin (o borrarla).
+ * En uso: solo el fin (no antes del último servicio cobrado con ella).
+ */
+function DialogoEditarVigencia({ clienteId, vigencia, onCerrar, onListo }) {
+  const [desde, setDesde] = useState(vigencia.vigente_desde);
+  const [hasta, setHasta] = useState(vigencia.vigente_hasta || "");
+  const [motivo, setMotivo] = useState("");
+  const [enviando, setEnviando] = useState(false);
+  const [error, setError] = useState("");
+  const enUso = vigencia.usada;
+  const motivoOk = motivo.trim().length >= 5;
+
+  async function ejecutar(accion) {
+    setEnviando(true);
+    setError("");
+    try {
+      if (accion === "borrar") {
+        await borrarVigenciaBolsa({ cliente_id: clienteId, vigente_desde: vigencia.vigente_desde, motivo: motivo.trim() });
+        onListo("Vigencia borrada", null);
+      } else {
+        const r = await editarVigenciaBolsa({
+          cliente_id: clienteId,
+          vigente_desde: vigencia.vigente_desde,
+          ...(desde !== vigencia.vigente_desde ? { nuevo_desde: desde } : {}),
+          nuevo_hasta: hasta || null,
+          motivo: motivo.trim(),
+        });
+        onListo("Vigencia actualizada", r.vigente_desde);
+      }
+    } catch (err) {
+      setError(mensajeError(err));
+    } finally {
+      setEnviando(false);
+    }
+  }
+
+  return (
+    <Dialog open onClose={() => !enviando && onCerrar()} maxWidth="xs" fullWidth>
+      <DialogTitle>Editar vigencia</DialogTitle>
+      <DialogContent dividers>
+        {enUso && (
+          <Alert severity="info" sx={{ mb: 2 }}>
+            Esta tabla ya cobró servicios: solo se puede cambiar la fecha final (no antes del último servicio cobrado). Para valores nuevos use "Nueva vigencia".
+          </Alert>
+        )}
+        <Stack spacing={2}>
+          <TextField
+            type="date"
+            label="Rige desde *"
+            value={desde}
+            onChange={(e) => setDesde(e.target.value)}
+            disabled={enUso}
+            slotProps={{ inputLabel: { shrink: true } }}
+          />
+          <TextField
+            type="date"
+            label="Rige hasta"
+            value={hasta}
+            onChange={(e) => setHasta(e.target.value)}
+            helperText="Vacío = sin fecha final"
+            slotProps={{ inputLabel: { shrink: true } }}
+          />
+          <TextField label="Motivo *" value={motivo} onChange={(e) => setMotivo(e.target.value)} helperText="Queda en la bitácora (mínimo 5 caracteres)" />
+          {error && <Alert severity="error">{error}</Alert>}
+        </Stack>
+      </DialogContent>
+      <DialogActions>
+        {!enUso && (
+          <Button color="error" onClick={() => ejecutar("borrar")} disabled={enviando || !motivoOk} sx={{ mr: "auto" }}>
+            Borrar esta vigencia
+          </Button>
+        )}
+        <Button onClick={onCerrar} disabled={enviando}>
+          Cancelar
+        </Button>
+        <Button variant="contained" onClick={() => ejecutar("guardar")} disabled={enviando || !desde || !motivoOk}>
+          {enviando ? "Guardando…" : "Guardar"}
+        </Button>
+      </DialogActions>
+    </Dialog>
+  );
+}
+
 export default function BolsaKmTabla({ editar }) {
   const clientes = useCargar(clientesConBolsa, []);
   const [clienteElegido, setClienteElegido] = useState("");
@@ -163,6 +258,7 @@ export default function BolsaKmTabla({ editar }) {
   const tabla = useCargar(() => (clienteId ? tablaBolsaKm(clienteId, vigenciaElegida || undefined) : Promise.resolve(null)), [clienteId, vigenciaElegida]);
   const [editando, setEditando] = useState(null); // { celda, columna, fila }
   const [copiando, setCopiando] = useState(false);
+  const [editandoVigencia, setEditandoVigencia] = useState(false);
   const [aviso, setAviso] = useState("");
 
   if (clientes.cargando && !clientes.datos) return <Cargando />;
@@ -236,9 +332,14 @@ export default function BolsaKmTabla({ editar }) {
               </TextField>
             )}
             {editar && t?.vigencia && (
-              <Button variant="outlined" startIcon={<ContentCopyIcon />} onClick={() => setCopiando(true)} sx={{ ml: { md: "auto" } }}>
-                Nueva vigencia
-              </Button>
+              <Stack direction="row" spacing={1} sx={{ ml: { md: "auto" } }}>
+                <Button variant="outlined" startIcon={<EventIcon />} onClick={() => setEditandoVigencia(true)}>
+                  Editar vigencia
+                </Button>
+                <Button variant="outlined" startIcon={<ContentCopyIcon />} onClick={() => setCopiando(true)}>
+                  Nueva vigencia
+                </Button>
+              </Stack>
             )}
           </Stack>
         </CardContent>
@@ -313,6 +414,20 @@ export default function BolsaKmTabla({ editar }) {
           onListo={(m) => {
             setEditando(null);
             setAviso(m);
+            tabla.recargar();
+          }}
+        />
+      )}
+      {editandoVigencia && t?.vigencia && (
+        <DialogoEditarVigencia
+          clienteId={Number(clienteId)}
+          vigencia={t.vigencia}
+          onCerrar={() => setEditandoVigencia(false)}
+          onListo={(mensaje, desde) => {
+            setEditandoVigencia(false);
+            setAviso(mensaje);
+            // Si cambió el inicio se muestra la misma tabla con su nueva fecha; si se borró, la vigente
+            setVigenciaElegida(desde || "");
             tabla.recargar();
           }}
         />

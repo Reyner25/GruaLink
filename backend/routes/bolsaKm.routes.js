@@ -7,6 +7,8 @@
  *  GET   /tabla?cliente_id&vigente_desde   tabla de una vigencia (Tarifas → Bolsa de km)
  *  PATCH /celdas/:id {forma, valor, motivo}   corregir una celda (si no se ha usado)
  *  POST  /versiones {cliente_id, copiar_de, vigente_desde, motivo}   nueva vigencia (copia)
+ *  PATCH /versiones {cliente_id, vigente_desde, nuevo_desde?, nuevo_hasta?, motivo}   editar vigencia
+ *  DELETE /versiones {cliente_id, vigente_desde, motivo}   borrar una tabla sin uso
  *  PATCH /provisional {cliente_id, bolsa_km_provisional}   columna provisional del mes abierto
  *  POST /recalcular {cliente_id, mes}   vuelve a calcular el mes (normalmente
  *                                 no hace falta: se recalcula solo)
@@ -157,6 +159,48 @@ router.patch(
       res.json(
         await BolsaTabla.cambiarProvisional({ clienteId: req.body.cliente_id, km: req.body.bolsa_km_provisional, usuarioId: req.usuario.id }),
       );
+    } catch (err) {
+      next(err);
+    }
+  },
+);
+
+// Editar la vigencia de una tabla { cliente_id, vigente_desde (la actual), nuevo_desde?, nuevo_hasta? (null = sin fin), motivo }
+router.patch(
+  "/versiones",
+  requierePermiso("tarifas:gestionar"),
+  body("cliente_id").isInt({ min: 1 }).toInt(),
+  fecha(body("vigente_desde")),
+  fecha(body("nuevo_desde").optional({ values: "undefined" })),
+  body("nuevo_hasta")
+    .optional({ values: "undefined" })
+    .custom((v) => v === null || (typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v) && !Number.isNaN(Date.parse(v))))
+    .withMessage("Fecha final inválida (o vacía = sin fin)"),
+  body("motivo").isString().trim().isLength({ min: 5, max: 500 }).withMessage("El motivo es obligatorio (mínimo 5 caracteres)"),
+  resultadoValidacion,
+  async (req, res, next) => {
+    try {
+      const { cliente_id: clienteId, vigente_desde: vigenteDesde, nuevo_desde: nuevoDesde, nuevo_hasta: nuevoHasta, motivo } = req.body;
+      res.json(await BolsaTabla.editarVigencia({ clienteId, vigenteDesde, nuevoDesde, nuevoHasta, motivo, usuarioId: req.usuario.id }));
+    } catch (err) {
+      next(err);
+    }
+  },
+);
+
+// Borrar una tabla que nunca se usó { cliente_id, vigente_desde, motivo }
+router.delete(
+  "/versiones",
+  requierePermiso("tarifas:gestionar"),
+  body("cliente_id").isInt({ min: 1 }).toInt(),
+  fecha(body("vigente_desde")),
+  body("motivo").isString().trim().isLength({ min: 5, max: 500 }).withMessage("El motivo es obligatorio (mínimo 5 caracteres)"),
+  resultadoValidacion,
+  async (req, res, next) => {
+    try {
+      const { cliente_id: clienteId, vigente_desde: vigenteDesde, motivo } = req.body;
+      await BolsaTabla.borrarVigencia({ clienteId, vigenteDesde, motivo, usuarioId: req.usuario.id });
+      res.status(204).end();
     } catch (err) {
       next(err);
     }

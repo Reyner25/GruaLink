@@ -752,9 +752,35 @@ test("Tarifas → Bolsa de km: ver la tabla, corregir celdas, nueva vigencia y c
   t = await ver(`&vigente_desde=${manana}`);
   assert.strictEqual(t.versiones.length, 2);
   assert.ok(t.celdas.every((c) => !c.usada)); // la copia aún no se ha usado
-  // Deja la base como estaba (la prueba se repite otros días)
-  await pool.query("DELETE FROM tarifas_bolsa_km WHERE cliente_id = $1 AND vigente_desde = $2", [suma, manana]);
-  await pool.query("UPDATE tarifas_bolsa_km SET vigente_hasta = '2026-12-31' WHERE cliente_id = $1 AND vigente_desde = '2026-01-01'", [suma]);
+  // ---- Editar la vigencia ----
+  const editar = (body) => api("PATCH", "/api/bolsa-km/versiones", { token: tokens.admin, body: { cliente_id: suma, motivo: "Ajuste de vigencia", ...body } });
+  const borrar = (desde) => api("DELETE", "/api/bolsa-km/versiones", { token: tokens.admin, body: { cliente_id: suma, vigente_desde: desde, motivo: "Creada por error" } });
+  const pasado = (await pool.query("SELECT (current_date + 2)::text AS d, (current_date + 40)::text AS f")).rows[0];
+  try {
+    // Sin uso: se cambian inicio y fin
+    let e = await editar({ vigente_desde: manana, nuevo_desde: pasado.d, nuevo_hasta: pasado.f });
+    assert.strictEqual(e.status, 200, JSON.stringify(e.datos));
+    assert.deepStrictEqual(e.datos, { vigente_desde: pasado.d, vigente_hasta: pasado.f });
+    e = await editar({ vigente_desde: pasado.d, nuevo_hasta: null }); // sin fin
+    assert.strictEqual(e.datos.vigente_hasta, null);
+    // En uso: el inicio no se cambia y el fin no puede quedar antes del último servicio cobrado
+    assert.strictEqual((await editar({ vigente_desde: "2026-01-01", nuevo_desde: "2026-02-01" })).datos.codigo, "VIGENCIA_EN_USO");
+    const antesDeUso = (await pool.query("SELECT ($1::date - 1)::text AS d", [mesAnterior])).rows[0].d;
+    assert.strictEqual((await editar({ vigente_desde: "2026-01-01", nuevo_hasta: antesDeUso })).datos.codigo, "CIERRE_ANTES_DE_USO");
+    // No puede cruzarse con otra vigencia
+    assert.strictEqual((await editar({ vigente_desde: "2026-01-01", nuevo_hasta: "2026-12-31" })).status, 409);
+    // Borrar: la que está en uso no; la copia sin uso sí
+    assert.strictEqual((await borrar("2026-01-01")).datos.codigo, "VIGENCIA_EN_USO");
+    assert.strictEqual((await borrar(pasado.d)).status, 204);
+    // Ya sin la copia, la original vuelve a su fin (31/12/2026)
+    e = await editar({ vigente_desde: "2026-01-01", nuevo_hasta: "2026-12-31" });
+    assert.strictEqual(e.status, 200, JSON.stringify(e.datos));
+    assert.strictEqual((await ver()).versiones.length, 1);
+  } finally {
+    // Deja la base como estaba aunque algo falle (la prueba se repite otros días)
+    await pool.query("DELETE FROM tarifas_bolsa_km WHERE cliente_id = $1 AND vigente_desde <> '2026-01-01'", [suma]);
+    await pool.query("UPDATE tarifas_bolsa_km SET vigente_hasta = '2026-12-31' WHERE cliente_id = $1 AND vigente_desde = '2026-01-01'", [suma]);
+  }
 
   // Columna provisional: 2000 km → columna 1800–2100; un servicio de 20 km del mes en curso vale 427.741
   const r6 = await api("PATCH", "/api/bolsa-km/provisional", { token: tokens.admin, body: { cliente_id: suma, bolsa_km_provisional: 2000 } });

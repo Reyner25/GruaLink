@@ -10,7 +10,7 @@
 - *Reportes → Bolsa de km (Suma)*: km del mes, columna aplicada, cuántos km faltan para la siguiente, servicios del mes y botón "Recalcular mes".
 - *Detalle del servicio*: muestra la bolsa y la columna con que se calculó.
 - *Excel*: columnas "Fuera de disponibilidad" y "Bolsa km del mes".
-- **Modificar la tabla** (24/11/2026): *Tarifas → Bolsa de km (Suma)*. Muestra la tabla como en el Excel. Clic en una celda para cambiar su forma (fijo, por km, a convenir) y su valor. Las celdas que ya cobraron servicios quedan con candado. "Nueva vigencia" copia la tabla desde una fecha (ej. 2027) para cambiar valores sin tocar lo ya cobrado. Ahí mismo se elige la **columna provisional** del mes abierto; al cambiarla se recalculan los servicios no aprobados del mes en curso. Todo queda en la bitácora. Los rangos (columnas y filas) son los del Excel y no se editan desde el panel.
+- **Modificar la tabla** (24/11/2026): *Tarifas → Bolsa de km (Suma)*. Muestra la tabla como en el Excel. Clic en una celda para cambiar su forma (fijo, por km, a convenir) y su valor. Las celdas que ya cobraron servicios quedan con candado. "Nueva vigencia" copia la tabla desde una fecha (ej. 2027) para cambiar valores sin tocar lo ya cobrado. "Editar vigencia" cambia las fechas: si la tabla no se ha usado, el inicio y el fin (o se puede borrar); si ya cobró servicios, solo la fecha final, y no antes del último servicio cobrado. Dos vigencias no pueden cruzarse. Ahí mismo se elige la **columna provisional** del mes abierto; al cambiarla se recalculan los servicios no aprobados del mes en curso. Todo queda en la bitácora. Los rangos (columnas y filas) son los del Excel y no se editan desde el panel.
 
 **Reglas:**
 - Remolque y remolque parte trasera **dentro de la disponibilidad**:

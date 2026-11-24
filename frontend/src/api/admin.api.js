@@ -78,6 +78,15 @@ export async function nuevaVigenciaBolsa(datos) {
   return data;
 }
 
+export async function editarVigenciaBolsa(datos) {
+  const { data } = await api.patch("/bolsa-km/versiones", datos);
+  return data;
+}
+
+export async function borrarVigenciaBolsa(datos) {
+  await api.delete("/bolsa-km/versiones", { data: datos });
+}
+
 export async function cambiarProvisionalBolsa(clienteId, km) {
   const { data } = await api.patch("/bolsa-km/provisional", { cliente_id: clienteId, bolsa_km_provisional: km });
   return data;

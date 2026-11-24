@@ -11,6 +11,8 @@
  *  - Para cambiar valores en uso se crea una NUEVA VIGENCIA copiando la
  *    actual desde una fecha; la anterior se cierra el día antes. No se puede
  *    empezar antes del último servicio cobrado con la anterior.
+ *  - La VIGENCIA se puede editar: sin uso, inicio y fin (o borrarla); en
+ *    uso, solo el fin y no antes del último servicio cobrado con ella.
  *  - La columna provisional (mes abierto) se elige por cliente; al cambiarla
  *    se recalculan los servicios del mes en curso que no estén aprobados.
  *  - Todo queda en la bitácora.
@@ -19,6 +21,9 @@ const { pool, withTransaction } = require("../config/db");
 const BitacoraModel = require("../models/bitacora.model");
 const { errorNegocio } = require("../utils/errores");
 const BolsaKm = require("./bolsaKm.service");
+
+// "2026-11-24" → "24/11/2026" para los mensajes
+const fechaTexto = (iso) => String(iso).slice(0, 10).split("-").reverse().join("/");
 
 const USADA = "EXISTS (SELECT 1 FROM servicios s WHERE s.tarifa_bolsa_id = b.id)";
 
@@ -134,7 +139,7 @@ async function nuevaVigencia({ clienteId, copiarDe, vigenteDesde, motivo, usuari
       throw errorNegocio(
         409,
         "CIERRE_ANTES_DE_USO",
-        `Hay servicios hasta el ${uso[0].ultima} cobrados con la tabla actual: la nueva vigencia debe empezar después de esa fecha`,
+        `Hay servicios hasta el ${fechaTexto(uso[0].ultima)} cobrados con la tabla actual: la nueva vigencia debe empezar después de esa fecha`,
       );
     }
     // Cerrar la anterior el día antes, si seguía vigente en la nueva fecha
@@ -164,6 +169,82 @@ async function nuevaVigencia({ clienteId, copiarDe, vigenteDesde, motivo, usuari
   });
 }
 
+// Celdas de una vigencia, bloqueadas, con su uso
+async function celdasDeVigencia(client, clienteId, vigenteDesde) {
+  const { rows } = await client.query(
+    `SELECT b.id, b.vigente_desde::text AS vigente_desde, b.vigente_hasta::text AS vigente_hasta
+     FROM tarifas_bolsa_km b WHERE b.cliente_id = $1 AND b.vigente_desde = $2 FOR UPDATE`,
+    [clienteId, vigenteDesde],
+  );
+  if (!rows.length) throw errorNegocio(404, "NO_ENCONTRADO", "No existe una tabla con esa vigencia");
+  const { rows: uso } = await client.query(
+    "SELECT min(fecha_servicio)::text AS primera, max(fecha_servicio)::text AS ultima FROM servicios WHERE tarifa_bolsa_id = ANY($1::int[])",
+    [rows.map((r) => r.id)],
+  );
+  return { ids: rows.map((r) => r.id), actual: rows[0], primeraUso: uso[0].primera, ultimaUso: uso[0].ultima };
+}
+
+/**
+ * Cambiar la vigencia de una tabla (todas sus celdas a la vez).
+ *  - Sin uso: se pueden cambiar inicio y fin.
+ *  - En uso: solo el fin, y no antes del último servicio cobrado con ella.
+ *  - No puede cruzarse con otra vigencia del mismo cliente (la base lo impide → 409).
+ * nuevoHasta: fecha, null (= sin fin) o undefined (= no cambia).
+ */
+async function editarVigencia({ clienteId, vigenteDesde, nuevoDesde, nuevoHasta, motivo, usuarioId }) {
+  return withTransaction(async (client) => {
+    const { ids, actual, ultimaUso } = await celdasDeVigencia(client, clienteId, vigenteDesde);
+    const desde = nuevoDesde ?? actual.vigente_desde;
+    const hasta = nuevoHasta === undefined ? actual.vigente_hasta : nuevoHasta;
+
+    if (desde !== actual.vigente_desde && ultimaUso) {
+      throw errorNegocio(
+        409,
+        "VIGENCIA_EN_USO",
+        "Esta tabla ya cobró servicios: no se puede cambiar su fecha de inicio, solo la de fin. Para valores nuevos cree una nueva vigencia.",
+      );
+    }
+    if (hasta && hasta < desde) throw errorNegocio(422, "VIGENCIA_INVALIDA", "La fecha final es anterior a la inicial");
+    if (hasta && ultimaUso && hasta < ultimaUso) {
+      throw errorNegocio(409, "CIERRE_ANTES_DE_USO", `Hay servicios hasta el ${fechaTexto(ultimaUso)} cobrados con esta tabla: la fecha final no puede ser anterior`);
+    }
+    if (desde === actual.vigente_desde && hasta === actual.vigente_hasta) {
+      throw errorNegocio(422, "SIN_CAMBIOS", "Las fechas son iguales a las actuales");
+    }
+
+    await client.query("UPDATE tarifas_bolsa_km SET vigente_desde = $2, vigente_hasta = $3 WHERE id = ANY($1::int[])", [ids, desde, hasta]);
+    await BitacoraModel.registrar(client, {
+      usuarioId,
+      entidad: "tarifas_bolsa_km",
+      registroId: ids[0],
+      operacion: "actualizar",
+      anteriores: { cliente_id: clienteId, vigente_desde: actual.vigente_desde, vigente_hasta: actual.vigente_hasta },
+      nuevos: { cliente_id: clienteId, vigente_desde: desde, vigente_hasta: hasta },
+      motivo,
+    });
+    return { vigente_desde: desde, vigente_hasta: hasta };
+  });
+}
+
+// Borrar una tabla que nunca se usó (ej. creada por error)
+async function borrarVigencia({ clienteId, vigenteDesde, motivo, usuarioId }) {
+  return withTransaction(async (client) => {
+    const { ids, actual, ultimaUso } = await celdasDeVigencia(client, clienteId, vigenteDesde);
+    if (ultimaUso) {
+      throw errorNegocio(409, "VIGENCIA_EN_USO", "Esta tabla ya cobró servicios: no se puede borrar, solo cerrar su vigencia");
+    }
+    await client.query("DELETE FROM tarifas_bolsa_km WHERE id = ANY($1::int[])", [ids]);
+    await BitacoraModel.registrar(client, {
+      usuarioId,
+      entidad: "tarifas_bolsa_km",
+      registroId: ids[0],
+      operacion: "anular",
+      anteriores: { cliente_id: clienteId, vigente_desde: actual.vigente_desde, vigente_hasta: actual.vigente_hasta, celdas: ids.length },
+      motivo,
+    });
+  });
+}
+
 /**
  * Columna provisional del cliente (mientras el mes está abierto). "km" es un
  * valor que cae en la columna elegida. Recalcula el mes en curso.
@@ -189,4 +270,4 @@ async function cambiarProvisional({ clienteId, km, usuarioId }) {
   });
 }
 
-module.exports = { versiones, tabla, actualizarCelda, nuevaVigencia, cambiarProvisional };
+module.exports = { versiones, tabla, actualizarCelda, nuevaVigencia, editarVigencia, borrarVigencia, cambiarProvisional };
