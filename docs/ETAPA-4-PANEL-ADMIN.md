@@ -83,13 +83,31 @@ Cada pantalla solo **describe** el recurso; el componente lista, busca, crea, ed
 
 Se borraron las pantallas del panel anterior (`PanelPage`, `ListadoOrdenesPage`, `DetalleOrdenPage`, `MonitoreoPage`, `InicioPage`, `OrdenServicioPage`, `LayoutPrincipal`, `components/ordenes/*`) y archivos sobrantes de la plantilla de Vite. Siguen en el historial de git (commit `092a53d` y anteriores).
 
-## 5.1 Recargo nocturno automático (23/11/2026)
+## 5.1 Recargo nocturno (23/11/2026; horario editable y control manual desde el 24/11/2026)
 
-- Se cobra **solo** si el servicio **termina** después de la hora de corte del cliente y **antes de las 6:00 a. m.** (hora de Colombia). Corte general **20:40**; por cliente en *Clientes → Recargo nocturno desde* (La Rolita **19:00**).
-- Límites: 20:40 exacto no lleva recargo, 20:41 sí; 05:59 sí, 06:00 no.
-- Se calcula al finalizar y en cada corrección (si cambia la hora de fin, se agrega o se quita). Nadie lo marca a mano: no aparece en *Corregir* ni en el celular; en el detalle sale como "Automático".
+- **Automático**: se cobra si el servicio **termina** después de la hora de corte y antes de la hora de fin de la madrugada (hora de Colombia).
+- **Horario general**: *Catálogos → Conceptos → Recargo nocturno* (por defecto 20:40 a 06:00). Hora propia de un cliente: *Clientes → Recargo nocturno desde* (La Rolita 19:00).
+- Límites: con corte 20:40, 20:40 exacto no lleva recargo y 20:41 sí; con fin 06:00, 05:59 sí y 06:00 no.
+- **El administrador decide** al corregir: *Recargo nocturno* = Automático (según la hora) · Aplicar siempre · No aplicar. En el detalle se indica cuando lo decidió el administrador.
 - Precio: el del concepto "Recargo nocturno" del cliente (o el general).
-- Código: `esNocturno` y `aplicarRecargoNocturno` en `backend/services/tarifa.service.js` (constantes `RECARGO_NOCTURNO`). Los servicios anteriores no se recalcularon.
+- Código: `esNocturno` y `aplicarRecargoNocturno` en `backend/services/tarifa.service.js`. Los cambios de horario aplican a los servicios que se calculen o corrijan después.
+
+## 5.1.1 Corrección completa del servicio (24/11/2026)
+
+En *Corregir* el administrador puede cambiar **todos** los datos:
+- **Servicio:** cliente (empresa), tipo de servicio, tipo de vehículo (y cuál, si es "Otro"), grúa y fecha.
+- **Horas:** solicitud, inicio y fin.
+- **Vehículo y ubicación:** placa, número, origen y destino.
+- **Kilómetros**, y si va fuera de la disponibilidad (Suma).
+- **Trabajos adicionales.**
+- **Valores:** tarifa básica manual (reemplaza la de la tabla; desactivarla vuelve a la automática) y recargo nocturno.
+- **Entrega y observaciones.**
+
+Al cambiar el cliente se recalcula con su tarifa y sus precios. El motivo es obligatorio y todo queda en la bitácora con los valores anteriores y nuevos.
+
+## 5.1.2 Tarifas en Excel (24/11/2026)
+
+Botón *Tarifas en Excel* en *Tarifas*, con los filtros de la pantalla (cliente y vigentes el). Trae 4 hojas: Tarifa básica, Precios de conceptos, Pago a operadores y Bolsa de km (Suma). Lo pueden usar el administrador y el financiero. API: `GET /api/exportar/tarifas`.
 
 ## 5.3 Turnos de los operadores (24/11/2026)
 

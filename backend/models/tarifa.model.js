@@ -106,8 +106,12 @@ const TarifaModel = {
    */
   async reglaRecargoNocturno(clienteId, { client = pool } = {}) {
     const { rows } = await client.query(
-      `SELECT (SELECT id FROM conceptos_tarifa WHERE es_recargo_nocturno AND activo) AS concepto_id,
-              (SELECT to_char(recargo_nocturno_desde, 'HH24:MI') FROM clientes WHERE id = $1) AS desde`,
+      `SELECT ct.id AS concepto_id,
+              to_char(ct.recargo_desde, 'HH24:MI') AS desde_general,
+              to_char(ct.recargo_hasta, 'HH24:MI') AS hasta,
+              (SELECT to_char(recargo_nocturno_desde, 'HH24:MI') FROM clientes WHERE id = $1) AS desde
+       FROM (SELECT 1) AS uno
+       LEFT JOIN conceptos_tarifa ct ON ct.es_recargo_nocturno AND ct.activo`,
       [clienteId],
     );
     return rows[0];

@@ -6,6 +6,14 @@
 const { body } = require("express-validator");
 const c = require("./comun");
 
+// Hora "HH:MM" (ej. 19:00) o null
+const horaNulable = (campo) =>
+  body(campo)
+    .optional({ values: "undefined" })
+    .customSanitizer((v) => (typeof v === "string" ? v.trim().slice(0, 5) || null : v))
+    .custom((v) => v === null || (typeof v === "string" && /^([01]\d|2[0-3]):[0-5]\d$/.test(v)))
+    .withMessage("Hora inválida (formato HH:MM, ej. 19:00)");
+
 // ---------- Clientes ----------
 // NIT: se quitan puntos y espacios ("900.123.456 - 7" → "900123456-7")
 const nit = (opcional) => {
@@ -66,6 +74,9 @@ const camposConcepto = (opcional) => [
     .isIn(UNIDADES)
     .withMessage(`Unidad de cobro: ${UNIDADES.join(", ")}`),
   c.booleano("la_reporta_operador", { opcional: true }), // false = solo lo aplica el administrador
+  // Horario del recargo nocturno (solo para el concepto "Recargo nocturno")
+  horaNulable("recargo_desde"),
+  horaNulable("recargo_hasta"),
   c.booleano("activo", { opcional: true }),
 ];
 

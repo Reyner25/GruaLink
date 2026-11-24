@@ -109,6 +109,12 @@ const validarCorregir = [
   opcional("entregado_sin_novedad").isBoolean({ strict: true }),
   // Clientes por bolsa de km (Suma): servicio fuera de la disponibilidad → tarifa general
   opcional("fuera_disponibilidad").isBoolean({ strict: true }).withMessage("Debe ser sí o no"),
+  // Ajustes del administrador: tarifa básica manual (null = automática) y recargo nocturno
+  body("tarifa_basica_manual")
+    .optional({ values: "undefined" })
+    .custom((v) => v === null || (typeof v === "number" && v >= 0 && v <= 999999999))
+    .withMessage("Tarifa manual inválida (valor en pesos o vacío para automática)"),
+  opcional("recargo_nocturno").isIn(["auto", "si", "no"]).withMessage("Recargo nocturno: auto, si o no"),
   ...[["tipo_vehiculo_otro", 60], ["numero_vehiculo", 20], ["origen", 255], ["destino", 255], ["recibe_nombre", 120], ["recibe_documento", 30],
     ["observaciones", 2000], ["observaciones_entrega", 2000]].map(([c, max]) =>
     body(c)

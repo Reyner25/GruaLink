@@ -38,6 +38,7 @@ const COLUMNAS_CORREGIR = [
   "entregado_sin_novedad", "recibe_nombre", "recibe_documento", "observaciones",
   "observaciones_entrega", "tarifa_id", "valor_tarifa_basica", "valor_conceptos", "valor_calculado",
   "fuera_disponibilidad", "tarifa_bolsa_id", "bolsa_km_mes",
+  "tarifa_basica_manual", "recargo_nocturno", // ajustes manuales del administrador
 ];
 
 // Columnas que se escriben al APROBAR

@@ -23,6 +23,7 @@ import { formatoFecha, formatoMoneda, formatoNumero, hoy, UNIDADES_COBRO } from 
 import { puede } from "../../utils/roles";
 import { EncabezadoPagina } from "../../components/admin/Comunes";
 import CrudCatalogo from "../../components/admin/CrudCatalogo";
+import BotonExportar from "../../components/admin/BotonExportar";
 import { Cargando, ErrorCarga } from "../../components/operador/Comunes";
 
 const GENERALES = "Clientes generales";
@@ -110,6 +111,8 @@ export default function Tarifas() {
         titulo="Tarifas"
         descripcion="Precios por cliente, tipo de servicio, tipo de vehículo y rango de kilómetros."
         migas={[{ texto: "Tarifas" }]}
+        // Todas las tarifas (básica, conceptos, pago a operadores y bolsa de km) con los filtros actuales
+        acciones={<BotonExportar reporte="tarifas" filtros={filtros} texto="Tarifas en Excel" />}
       />
       <Card sx={{ mb: 2 }}>
         <Tabs value={pestana} onChange={(_, v) => setPestana(v)}>
@@ -171,6 +174,11 @@ export default function Tarifas() {
       )}
 
       {pestana === "conceptos" && (
+        <>
+        <Alert severity="info" sx={{ mb: 2 }}>
+          El <b>horario del recargo nocturno</b> (desde qué hora se cobra) se configura en <b>Catálogos → Conceptos → Recargo nocturno</b> (hora general) y en{" "}
+          <b>Clientes → Recargo nocturno desde</b> (hora propia de un cliente). Aquí solo va su precio.
+        </Alert>
         <CrudCatalogo
           ruta="/precios-concepto"
           clave="precios"
@@ -202,6 +210,7 @@ export default function Tarifas() {
             ...camposVigencia,
           ]}
         />
+        </>
       )}
 
       {pestana === "operadores" && (

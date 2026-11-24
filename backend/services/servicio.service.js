@@ -211,6 +211,8 @@ const ServicioService = {
           kmVacio: actual.km_vacio,
           servicioId,
           fueraDisponibilidad: actual.fuera_disponibilidad,
+          tarifaManual: actual.tarifa_basica_manual, // ajustes del administrador
+          recargoModo: actual.recargo_nocturno,
         },
         { client },
       );
@@ -422,6 +424,8 @@ const ServicioService = {
             kmVacio: final.km_vacio,
             servicioId: id,
             fueraDisponibilidad: final.fuera_disponibilidad,
+            tarifaManual: final.tarifa_basica_manual, // ajustes del administrador
+            recargoModo: final.recargo_nocturno,
           },
           { client },
         );

@@ -34,6 +34,8 @@ const { errorNegocio } = require("../utils/errores");
 // Redondea a 2 decimales (centavos) para que coincida con NUMERIC(12,2)
 const redondear = (n) => Math.round(Number(n) * 100) / 100;
 
+// Valores por defecto. Los reales se editan en Catálogos → Conceptos →
+// "Recargo nocturno" (conceptos_tarifa.recargo_desde / recargo_hasta, migración 012).
 const RECARGO_NOCTURNO = {
   desdeGeneral: "20:40", // hora de corte de "Clientes generales"
   hasta: "06:00", // hasta esta hora de la madrugada sigue aplicando
@@ -49,24 +51,29 @@ const minutosDelDia = (hhmm) => {
  * Estrictamente después de la hora de corte (20:40 → 20:41 sí, 20:40 no) y
  * antes de las 6:00 (05:59 sí, 06:00 no).
  */
-function esNocturno(finServicio, desde = RECARGO_NOCTURNO.desdeGeneral) {
+function esNocturno(finServicio, desde = RECARGO_NOCTURNO.desdeGeneral, hasta = RECARGO_NOCTURNO.hasta) {
   if (!finServicio) return false;
   const fin = new Date(finServicio);
   if (Number.isNaN(fin.getTime())) return false;
   const partes = new Intl.DateTimeFormat("en-GB", { timeZone: "America/Bogota", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(fin);
   const minutos = minutosDelDia(partes);
-  return minutos > minutosDelDia(desde) || minutos < minutosDelDia(RECARGO_NOCTURNO.hasta);
+  return minutos > minutosDelDia(desde) || minutos < minutosDelDia(hasta);
 }
 
 /**
- * Quita el recargo que venga en la lista (es automático) y lo agrega si
- * corresponde según la hora de fin. Devuelve la lista final de conceptos.
+ * Quita el recargo que venga en la lista (lo decide el sistema) y lo agrega
+ * si corresponde. modo (lo elige el administrador al corregir):
+ *   "auto" = según la hora de fin y el horario del recargo · "si" = siempre · "no" = nunca
+ * Devuelve la lista final de conceptos.
  */
-async function aplicarRecargoNocturno({ conceptos = [], clienteId, finServicio }, opciones) {
+async function aplicarRecargoNocturno({ conceptos = [], clienteId, finServicio, modo = "auto" }, opciones) {
   const regla = await TarifaModel.reglaRecargoNocturno(clienteId, opciones);
   if (!regla.concepto_id) return { conceptos, automaticos: new Set() };
   const sinRecargo = conceptos.filter((c) => c.concepto_id !== regla.concepto_id);
-  if (!esNocturno(finServicio, regla.desde || RECARGO_NOCTURNO.desdeGeneral)) return { conceptos: sinRecargo, automaticos: new Set() };
+  const desde = regla.desde || regla.desde_general || RECARGO_NOCTURNO.desdeGeneral;
+  const hasta = regla.hasta || RECARGO_NOCTURNO.hasta;
+  const aplica = modo === "si" || (modo !== "no" && esNocturno(finServicio, desde, hasta));
+  if (!aplica) return { conceptos: sinRecargo, automaticos: new Set() };
   return { conceptos: [...sinRecargo, { concepto_id: regla.concepto_id, cantidad: 1 }], automaticos: new Set([regla.concepto_id]) };
 }
 
@@ -203,29 +210,51 @@ async function calcularPorBolsa({ clienteId, fecha, kmServicio, kmVacio, concept
  * Clientes por bolsa de km (Suma): los remolques dentro de la disponibilidad
  * van por calcularPorBolsa; todo lo demás (fuera de la disponibilidad,
  * servicio fallido) se cobra con la tarifa y los precios de CLIENTES GENERALES.
+ *
+ * Ajustes del ADMINISTRADOR (al corregir):
+ *  - tarifaManual: si no es null, reemplaza la tarifa básica (de la tabla de
+ *    tarifas o de la bolsa de km). Sirve también para servicios "a convenir".
+ *  - recargoModo: "auto" (por la hora de fin) · "si" (siempre) · "no" (nunca).
  */
 async function calcularValores(
   {
     clienteId, tipoVehiculo, tipoServicio, fecha, kmServicio, kmVacio = 0, conceptos, finServicio,
-    soloOperador = false, servicioId = null, fueraDisponibilidad = false,
+    soloOperador = false, servicioId = null, fueraDisponibilidad = false, tarifaManual = null, recargoModo = "auto",
   },
   opciones,
 ) {
+  const manual = tarifaManual === null || tarifaManual === undefined ? null : redondear(tarifaManual);
   const porBolsa = (await TarifaModel.modalidadCliente(clienteId, opciones)) === "bolsa_km_mensual";
   if (porBolsa && !fueraDisponibilidad && tipoServicio.usa_bolsa_km && !tipoServicio.valor_a_convenir && !tipoVehiculo.es_otro) {
-    return calcularPorBolsa({ clienteId, fecha, kmServicio, kmVacio, conceptos, soloOperador, servicioId }, opciones);
+    const v = await calcularPorBolsa({ clienteId, fecha, kmServicio, kmVacio, conceptos, soloOperador, servicioId }, opciones);
+    if (manual === null) return v;
+    // Tarifa manual: reemplaza el valor de la bolsa (los adicionales siguen sin cobro)
+    return { ...v, tarifa_bolsa_id: null, bolsa_km_mes: null, valor_tarifa_basica: manual, valor_calculado: manual, requiere_valor_manual: false };
   }
   // Cliente por bolsa, servicio que no va en la bolsa → tarifa general
   const clienteTarifa = porBolsa ? null : clienteId;
 
   const km = kmFacturables({ kmServicio });
   // La hora de corte del recargo es la del cliente; el precio, el de su tarifa
-  const conRecargo = await aplicarRecargoNocturno({ conceptos, clienteId, finServicio }, opciones);
+  const conRecargo = await aplicarRecargoNocturno({ conceptos, clienteId, finServicio, modo: recargoModo }, opciones);
   const adicionales = await calcularConceptos(
     { conceptos: conRecargo.conceptos, clienteId: clienteTarifa, fecha, soloOperador, automaticos: conRecargo.automaticos },
     opciones,
   );
   const sinBolsa = { tarifa_bolsa_id: null, bolsa_km_mes: null };
+
+  if (manual !== null) {
+    return {
+      ...sinBolsa,
+      km_facturables: km,
+      tarifa_id: null,
+      valor_tarifa_basica: manual,
+      valor_conceptos: adicionales.total,
+      valor_calculado: redondear(manual + adicionales.total),
+      requiere_valor_manual: false,
+      conceptos: adicionales.detalle,
+    };
+  }
 
   if (tipoServicio.valor_a_convenir || tipoVehiculo.es_otro) {
     return {

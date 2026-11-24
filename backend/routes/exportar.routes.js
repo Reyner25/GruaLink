@@ -274,6 +274,131 @@ router.get("/pago-operadores", requierePermiso("valores:ver"), ...filtrosLiquida
   }
 });
 
+// ---------- Tarifas (administrador y financiero) ----------
+const { TarifaAdminModel, PrecioConceptoModel, ReglaPagoModel, listarConVigencia } = require("../models/tarifaAdmin.model");
+const { pool } = require("../config/db");
+
+const COMPONENTES_PAGO = {
+  total: "Todo el valor del servicio",
+  tarifa_basica: "Tarifa básica",
+  valor_a_convenir: "Servicios a convenir (rescate)",
+  concepto: "Trabajo adicional",
+};
+const FORMAS_BOLSA = { fijo: "Valor fijo", por_km: "Por km", a_convenir: "A convenir" };
+
+router.get(
+  "/tarifas",
+  requierePermiso("tarifas:ver", "tarifas:gestionar"),
+  query("cliente_id").optional().custom((v) => v === "generales" || /^\d+$/.test(v)),
+  query("vigente_en").optional().isISO8601({ strict: true }),
+  resultadoValidacion,
+  async (req, res, next) => {
+    try {
+      const opciones = { clienteId: req.query.cliente_id, vigenteEn: req.query.vigente_en, limite: ExportarModel.LIMITE_FILAS };
+      const [tarifas, precios, reglas] = await Promise.all([
+        listarConVigencia(TarifaAdminModel, opciones),
+        listarConVigencia(PrecioConceptoModel, opciones),
+        listarConVigencia(ReglaPagoModel, opciones),
+      ]);
+      // Bolsa de km (Suma): una fila por celda de la tabla
+      const filtrosBolsa = [];
+      const valores = [];
+      if (req.query.cliente_id && req.query.cliente_id !== "generales") {
+        valores.push(Number(req.query.cliente_id));
+        filtrosBolsa.push(`b.cliente_id = $${valores.length}`);
+      } else if (req.query.cliente_id === "generales") filtrosBolsa.push("FALSE");
+      if (req.query.vigente_en) {
+        valores.push(req.query.vigente_en);
+        filtrosBolsa.push(`b.vigente_desde <= $${valores.length} AND (b.vigente_hasta IS NULL OR b.vigente_hasta >= $${valores.length})`);
+      }
+      const { rows: bolsa } = await pool.query(
+        `SELECT COALESCE(c.nombre_comercial, c.razon_social) AS cliente, b.bolsa_km_desde, b.bolsa_km_hasta,
+                b.km_desde, b.km_hasta, b.forma, b.valor, b.vigente_desde::text AS vigente_desde, b.vigente_hasta::text AS vigente_hasta
+         FROM tarifas_bolsa_km b JOIN clientes c ON c.id = b.cliente_id
+         ${filtrosBolsa.length ? `WHERE ${filtrosBolsa.join(" AND ")}` : ""}
+         ORDER BY cliente, b.vigente_desde, b.bolsa_km_desde, b.km_desde`,
+        valores,
+      );
+      const siNo = (v) => (v ? "En uso" : "Sin uso");
+      const vigencia = [
+        { titulo: "Vigente desde", campo: "vigente_desde", formato: "fecha", ancho: 12 },
+        { titulo: "Vigente hasta", campo: "vigente_hasta", formato: "fecha", ancho: 12 },
+      ];
+
+      const buffer = await crearExcel({
+        titulo: "Tarifas",
+        hojas: [
+          {
+            nombre: "Tarifa básica",
+            columnas: [
+              { titulo: "Cliente", campo: "cliente_nombre", ancho: 24 },
+              { titulo: "Tipo de servicio", campo: "tipo_servicio", ancho: 22 },
+              { titulo: "Tipo de vehículo", campo: "tipo_vehiculo", ancho: 16 },
+              { titulo: "Km desde", campo: "km_desde", formato: "numero", ancho: 9 },
+              { titulo: "Km hasta", campo: "km_hasta", formato: "numero", ancho: 9 },
+              { titulo: "Valor", campo: "valor", formato: "moneda", ancho: 14 },
+              ...vigencia,
+              { titulo: "Uso", campo: "uso", ancho: 9 },
+            ],
+            filas: tarifas.map((t) => ({ ...t, uso: siNo(t.usada) })),
+          },
+          {
+            nombre: "Precios de conceptos",
+            columnas: [
+              { titulo: "Concepto", campo: "concepto", ancho: 30 },
+              { titulo: "Unidad", campo: "unidad", ancho: 9 },
+              { titulo: "Cliente", campo: "cliente_nombre", ancho: 24 },
+              { titulo: "Valor unitario", campo: "valor", formato: "moneda", ancho: 14 },
+              ...vigencia,
+              { titulo: "Uso", campo: "uso", ancho: 9 },
+            ],
+            filas: precios.map((p) => ({ ...p, unidad: UNIDADES[p.unidad_cobro] || p.unidad_cobro, uso: siNo(p.usada) })),
+          },
+          {
+            nombre: "Pago a operadores",
+            columnas: [
+              { titulo: "Cliente", campo: "cliente_nombre", ancho: 24 },
+              { titulo: "Aplica a", campo: "aplica", ancho: 30 },
+              { titulo: "Cómo se paga", campo: "como", ancho: 28 },
+              ...vigencia,
+              { titulo: "Uso", campo: "uso", ancho: 9 },
+            ],
+            filas: reglas.map((r) => ({
+              ...r,
+              aplica: r.componente === "concepto" ? r.concepto : COMPONENTES_PAGO[r.componente],
+              como:
+                r.forma === "porcentaje"
+                  ? `${Number(r.valor)} %`
+                  : r.forma === "fijo_servicio"
+                    ? `$${Math.round(r.valor).toLocaleString("es-CO")} fijo por servicio`
+                    : "No se paga",
+              uso: siNo(r.usada),
+            })),
+          },
+          {
+            nombre: "Bolsa de km (Suma)",
+            columnas: [
+              { titulo: "Cliente", campo: "cliente", ancho: 16 },
+              { titulo: "Km del mes desde", campo: "bolsa_km_desde", formato: "numero", ancho: 12 },
+              { titulo: "Km del mes hasta", campo: "bolsa_km_hasta", formato: "numero", ancho: 12 },
+              { titulo: "Km del servicio desde", campo: "km_desde", formato: "numero", ancho: 12 },
+              { titulo: "Km del servicio hasta", campo: "km_hasta", formato: "numero", ancho: 12 },
+              { titulo: "Forma", campo: "forma_texto", ancho: 12 },
+              { titulo: "Valor", campo: "valor", formato: "moneda", ancho: 14 },
+              ...vigencia,
+            ],
+            filas: bolsa.map((b) => ({ ...b, forma_texto: FORMAS_BOLSA[b.forma] || b.forma })),
+          },
+        ],
+      });
+      const sufijo = req.query.vigente_en ? `vigentes_${req.query.vigente_en}` : "todas";
+      enviarExcel(res, buffer, `GruaLink_tarifas_${sufijo}.xlsx`);
+    } catch (err) {
+      next(err);
+    }
+  },
+);
+
 // ---------- Turnos de los operadores (solo administrador) ----------
 const TurnoModel = require("../models/turno.model");
 const ESTADOS_TURNO = { activo: "En turno", finalizado: "Finalizado", cerrado_admin: "Cerrado por el administrador" };

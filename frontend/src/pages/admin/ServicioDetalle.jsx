@@ -384,6 +384,16 @@ export default function ServicioDetalle() {
                       <Typography variant="caption" color="text.secondary">
                         ({formatoNumero(s.km_facturables ?? 0)} km facturables)
                       </Typography>
+                      {s.tarifa_basica_manual !== null && s.tarifa_basica_manual !== undefined && (
+                        <Typography variant="caption" color="warning.main" component="div">
+                          Tarifa manual (puesta por el administrador)
+                        </Typography>
+                      )}
+                      {s.recargo_nocturno === "no" && (
+                        <Typography variant="caption" color="text.secondary" component="div">
+                          Recargo nocturno: no se aplica (decisión del administrador)
+                        </Typography>
+                      )}
                       {s.cliente_modalidad_cobro === "bolsa_km_mensual" && (
                         <Typography variant="caption" color="text.secondary" component="div">
                           {s.tarifa_bolsa_id && s.bolsa_km_mes === null
@@ -410,7 +420,7 @@ export default function ServicioDetalle() {
                         {c.nombre}
                         {c.es_recargo_nocturno && (
                           <Typography variant="caption" color="text.secondary" component="div">
-                            Automático: el servicio terminó en horario nocturno
+                            {s.recargo_nocturno === "si" ? "Aplicado por el administrador" : "Automático: el servicio terminó en horario nocturno"}
                           </Typography>
                         )}
                       </TableCell>
@@ -468,7 +478,7 @@ export default function ServicioDetalle() {
           onListo={terminar}
           servicio={s}
           conceptosActuales={conceptos}
-          catalogoConceptos={catalogos.datos.conceptos}
+          catalogos={catalogos.datos}
         />
       )}
       {dialogo === "aprobar" && <DialogoAprobar abierto onCerrar={() => setDialogo(null)} onListo={terminar} servicio={s} />}

@@ -73,6 +73,8 @@ async function recalcularMes(client, { clienteId, fecha, excluirId = null, usuar
         finServicio: s.fin_servicio,
         servicioId: id,
         fueraDisponibilidad: s.fuera_disponibilidad,
+        tarifaManual: s.tarifa_basica_manual,
+        recargoModo: s.recargo_nocturno,
       },
       { client },
     );

@@ -428,9 +428,75 @@ test("recargo nocturno: se aplica solo según la hora de fin y la hora de corte 
     assert.strictEqual(r.status, 200, JSON.stringify(r.datos));
     d = await conceptos(lr.datos.servicio.id);
     assert.strictEqual(d.conceptos.find((c) => c.concepto_id === ids.recargo)?.total, 98000);
+
+    // ---- Horario general editable en Catálogos → Conceptos (migración 012) ----
+    const tieneRecargo = async (sid) => (await conceptos(sid)).conceptos.some((c) => c.concepto_id === ids.recargo);
+    await corregir(id, horas("21:00", "21:10", "21:30")); // 21:30 > 20:40 → recargo
+    assert.strictEqual(await tieneRecargo(id), true);
+    const cambio = await api("PATCH", `/api/conceptos/${ids.recargo}`, { token: tokens.admin, body: { recargo_desde: "22:00", motivo: "Nuevo horario" } });
+    assert.strictEqual(cambio.status, 200, JSON.stringify(cambio.datos));
+    await corregir(id, { motivo: "Recalcular con el nuevo horario", km_vacio: 1 });
+    assert.strictEqual(await tieneRecargo(id), false); // 21:30 ya no pasa de 22:00
+    // El horario solo se pone en el concepto de recargo
+    const otro = await api("PATCH", `/api/conceptos/${ids.cardan}`, { token: tokens.admin, body: { recargo_desde: "22:00", motivo: "No aplica" } });
+    assert.strictEqual(otro.datos.codigo, "SOLO_RECARGO");
+    await api("PATCH", `/api/conceptos/${ids.recargo}`, { token: tokens.admin, body: { recargo_desde: "20:40", motivo: "Horario original" } });
+
+    // ---- El administrador decide el recargo: siempre / nunca / automático ----
+    await corregir(id, horas("10:00", "10:15", "11:00")); // de día
+    assert.strictEqual(await tieneRecargo(id), false);
+    await corregir(id, { recargo_nocturno: "si" });
+    assert.strictEqual(await tieneRecargo(id), true);
+    await corregir(id, horas("21:30", "21:45", "22:15")); // de noche…
+    await corregir(id, { recargo_nocturno: "no" }); // …pero el administrador lo quita
+    assert.strictEqual(await tieneRecargo(id), false);
+    await corregir(id, { recargo_nocturno: "auto" });
+    assert.strictEqual(await tieneRecargo(id), true);
   } finally {
     await recargoNocturnoActivo(false);
+    await pool.query("UPDATE conceptos_tarifa SET recargo_desde = '20:40', recargo_hasta = '06:00' WHERE es_recargo_nocturno");
   }
+});
+
+test("corrección completa: cambiar la empresa y poner una tarifa manual", async () => {
+  const s = await api("POST", "/api/servicios", { token: tokens.op1, body: datosServicio() }); // Bogotá Móvil, articulado
+  const id = s.datos.servicio.id;
+  await api("POST", `/api/servicios/${id}/finalizar`, { token: tokens.op1, body: datosFinalizar({ conceptos: [{ concepto_id: ids.cardan, cantidad: 1 }] }) });
+  const corregir = async (body) => {
+    const r = await api("POST", `/api/servicios/${id}/corregir`, { token: tokens.admin, body: { motivo: "Ajuste del administrador", ...body } });
+    assert.strictEqual(r.status, 200, JSON.stringify(r.datos));
+    return (await api("GET", `/api/servicios/${id}`, { token: tokens.admin })).datos.servicio;
+  };
+
+  // Cambiar la empresa: se recalcula con la tarifa y los precios de CAPITALBUS (368.000 + cardán 88.000)
+  let sv = await corregir({ cliente_id: ids.capitalbus, placa_vehiculo: "abc 123", recibe_nombre: "Supervisor", observaciones: "Era de CAPITALBUS" });
+  assert.strictEqual(sv.cliente_id, ids.capitalbus);
+  assert.strictEqual(sv.valor_tarifa_basica, 368000);
+  assert.strictEqual(sv.valor_calculado, 456000);
+  assert.strictEqual(sv.placa_vehiculo, "ABC123");
+  assert.strictEqual(sv.recibe_nombre, "Supervisor");
+
+  // Tarifa manual: reemplaza la de la tabla
+  sv = await corregir({ tarifa_basica_manual: 500000 });
+  assert.strictEqual(sv.valor_tarifa_basica, 500000);
+  assert.strictEqual(sv.tarifa_id, null);
+  assert.strictEqual(sv.valor_calculado, 588000);
+  // Quitarla vuelve a la automática
+  sv = await corregir({ tarifa_basica_manual: null });
+  assert.strictEqual(sv.valor_tarifa_basica, 368000);
+  const malo = await api("POST", `/api/servicios/${id}/corregir`, { token: tokens.admin, body: { tarifa_basica_manual: -5, motivo: "Valor inválido" } });
+  assert.strictEqual(malo.status, 422);
+
+  // Excel de tarifas: 4 hojas; financiero sí, operador no
+  const xls = await fetch(`${base}/api/exportar/tarifas?vigente_en=${ids.hoy}`, { headers: { Authorization: `Bearer ${tokens.fin}` } });
+  assert.strictEqual(xls.status, 200);
+  const ExcelJS = require("exceljs");
+  const libro = new ExcelJS.Workbook();
+  await libro.xlsx.load(Buffer.from(await xls.arrayBuffer()));
+  assert.deepStrictEqual(libro.worksheets.map((w) => w.name), ["Tarifa básica", "Precios de conceptos", "Pago a operadores", "Bolsa de km (Suma)"]);
+  assert.ok(libro.getWorksheet("Tarifa básica").rowCount > 10);
+  assert.strictEqual(libro.getWorksheet("Bolsa de km (Suma)").rowCount, 115); // encabezado + 114 celdas
+  assert.strictEqual((await fetch(`${base}/api/exportar/tarifas`, { headers: { Authorization: `Bearer ${tokens.op1}` } })).status, 403);
 });
 
 test("CAPITALBUS: precio propio de conceptos; el administrador agrega 1,5 h de stand-by", async () => {

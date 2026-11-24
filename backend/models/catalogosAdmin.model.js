@@ -24,7 +24,8 @@ const TipoServicioModel = crearModeloCrud({
 
 const ConceptoModel = crearModeloCrud({
   tabla: "conceptos_tarifa",
-  columnas: ["nombre", "descripcion", "unidad_cobro", "la_reporta_operador", "activo"],
+  // recargo_desde / recargo_hasta: solo para el concepto "Recargo nocturno"
+  columnas: ["nombre", "descripcion", "unidad_cobro", "la_reporta_operador", "recargo_desde", "recargo_hasta", "activo"],
   orden: "nombre",
 });
 

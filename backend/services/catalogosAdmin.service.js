@@ -16,6 +16,16 @@ const ConceptoService = crearServicioCatalogo({ modelo: M.ConceptoModel, entidad
  * "2" horas no es lo mismo que "2" eventos). Se crea un concepto nuevo.
  */
 async function validarCambioConcepto(actual, cambios, client) {
+  // El horario solo aplica al concepto que el sistema usa como recargo nocturno
+  for (const campo of ["recargo_desde", "recargo_hasta"]) {
+    if (cambios[campo] === undefined) continue;
+    if (!actual.es_recargo_nocturno) {
+      throw errorNegocio(422, "SOLO_RECARGO", "El horario solo se configura en el concepto de recargo nocturno");
+    }
+    if (cambios[campo] === null) {
+      throw errorNegocio(422, "HORA_OBLIGATORIA", "Indique la hora de inicio y de fin del recargo nocturno");
+    }
+  }
   if (cambios.unidad_cobro && cambios.unidad_cobro !== actual.unidad_cobro) {
     const { rows } = await client.query(
       "SELECT 1 FROM servicio_conceptos WHERE concepto_id = $1 LIMIT 1",
