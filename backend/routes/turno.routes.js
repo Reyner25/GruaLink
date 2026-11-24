@@ -6,6 +6,9 @@
  *  POST /iniciar            { grua_id, observaciones? }
  *  POST /finalizar          { observaciones?, justificacion? }
  *  GET  /                   historial (operador: propios · admin: todos)
+ *                           ?desde ?hasta ?operador_id ?grua_id ?estado ?limite ?pagina
+ *  GET  /en-curso           admin: operadores en turno ahora
+ *  GET  /resumen            admin: por operador, turnos y horas trabajadas (mismos filtros)
  *  POST /:id/cerrar         admin cierra un turno olvidado { motivo }
  */
 const { Router } = require("express");
@@ -22,6 +25,8 @@ router.get("/gruas-disponibles", requierePermiso("turnos:propios"), ctrl.gruasDi
 router.post("/iniciar", requierePermiso("turnos:propios"), v.validarIniciarTurno, ctrl.iniciar);
 router.post("/finalizar", requierePermiso("turnos:propios"), v.validarFinalizarTurno, ctrl.finalizar);
 router.get("/", requierePermiso("turnos:propios", "turnos:ver_todos"), v.validarListado, ctrl.listar);
+router.get("/en-curso", requierePermiso("turnos:ver_todos"), ctrl.enCurso);
+router.get("/resumen", requierePermiso("turnos:ver_todos"), v.validarListado, ctrl.resumen);
 router.post("/:id/cerrar", requierePermiso("turnos:cerrar_otros"), v.validarCerrarTurnoAdmin, ctrl.cerrarPorAdministrador);
 
 module.exports = router;

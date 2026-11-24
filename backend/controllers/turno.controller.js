@@ -57,6 +57,8 @@ async function listar(req, res, next) {
     const veTodos = tienePermiso(req.usuario.rol, "turnos:ver_todos");
     const turnos = await TurnoModel.listar({
       operadorId: veTodos ? Number(req.query.operador_id) || undefined : req.usuario.id,
+      gruaId: Number(req.query.grua_id) || undefined,
+      estado: req.query.estado,
       desde: req.query.desde,
       hasta: req.query.hasta,
       limite: Number(req.query.limite) || 30,
@@ -81,4 +83,29 @@ async function cerrarPorAdministrador(req, res, next) {
   }
 }
 
-module.exports = { activo, gruasDisponibles, iniciar, finalizar, listar, cerrarPorAdministrador };
+// Administrador: quién está en turno ahora
+async function enCurso(req, res, next) {
+  try {
+    res.json({ turnos: await TurnoModel.activos() });
+  } catch (err) {
+    next(err);
+  }
+}
+
+// Administrador: resumen por operador (horas trabajadas, servicios…) en el periodo
+async function resumen(req, res, next) {
+  try {
+    const operadores = await TurnoModel.resumenPorOperador({
+      operadorId: Number(req.query.operador_id) || undefined,
+      gruaId: Number(req.query.grua_id) || undefined,
+      estado: req.query.estado,
+      desde: req.query.desde,
+      hasta: req.query.hasta,
+    });
+    res.json({ operadores });
+  } catch (err) {
+    next(err);
+  }
+}
+
+module.exports = { activo, gruasDisponibles, iniciar, finalizar, listar, cerrarPorAdministrador, enCurso, resumen };

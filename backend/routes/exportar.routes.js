@@ -274,6 +274,70 @@ router.get("/pago-operadores", requierePermiso("valores:ver"), ...filtrosLiquida
   }
 });
 
+// ---------- Turnos de los operadores (solo administrador) ----------
+const TurnoModel = require("../models/turno.model");
+const ESTADOS_TURNO = { activo: "En turno", finalizado: "Finalizado", cerrado_admin: "Cerrado por el administrador" };
+
+// Fecha/hora → texto en hora de Colombia ("2026-11-24 06:05:00"), como espera crearExcel
+const horaColombia = (d) =>
+  d ? new Intl.DateTimeFormat("sv-SE", { timeZone: "America/Bogota", dateStyle: "short", timeStyle: "medium" }).format(new Date(d)) : null;
+
+router.get(
+  "/turnos",
+  requierePermiso("turnos:ver_todos"),
+  query("desde").optional().isISO8601({ strict: true }),
+  query("hasta").optional().isISO8601({ strict: true }),
+  query("operador_id").optional().isInt({ min: 1 }),
+  query("grua_id").optional().isInt({ min: 1 }),
+  query("estado").optional().isIn(Object.keys(ESTADOS_TURNO)),
+  resultadoValidacion,
+  async (req, res, next) => {
+    try {
+      const q = req.query;
+      const turnos = await TurnoModel.listar({
+        operadorId: q.operador_id ? Number(q.operador_id) : undefined,
+        gruaId: q.grua_id ? Number(q.grua_id) : undefined,
+        estado: q.estado,
+        desde: q.desde,
+        hasta: q.hasta,
+        limite: ExportarModel.LIMITE_FILAS,
+      });
+      const buffer = await crearExcel({
+        titulo: "Turnos de operadores",
+        hojas: [
+          {
+            nombre: "Turnos",
+            totales: ["horas", "servicios"],
+            columnas: [
+              { titulo: "Operador", campo: "operador_nombre", ancho: 24 },
+              { titulo: "Grúa", campo: "grua_numero", ancho: 7 },
+              { titulo: "Placa grúa", campo: "grua_placa", ancho: 10 },
+              { titulo: "Inicio", campo: "inicio_texto", formato: "fechaHora", ancho: 16 },
+              { titulo: "Fin", campo: "fin_texto", formato: "fechaHora", ancho: 16 },
+              { titulo: "Horas", campo: "horas", formato: "numero", ancho: 8 },
+              { titulo: "Servicios", campo: "servicios", formato: "entero", ancho: 9 },
+              { titulo: "Estado", campo: "estado_texto", ancho: 16 },
+              { titulo: "Cerrado por", campo: "cerrado_por_nombre", ancho: 18 },
+              { titulo: "Observaciones al iniciar", campo: "observaciones_inicio", ancho: 30 },
+              { titulo: "Observaciones al cerrar", campo: "observaciones_cierre", ancho: 35 },
+            ],
+            filas: turnos.map((t) => ({
+              ...t,
+              inicio_texto: horaColombia(t.inicio),
+              fin_texto: horaColombia(t.fin),
+              horas: Math.round((t.duracion_min / 60) * 100) / 100,
+              estado_texto: ESTADOS_TURNO[t.estado] || t.estado,
+            })),
+          },
+        ],
+      });
+      enviarExcel(res, buffer, `GruaLink_turnos_${sufijoFechas(q)}.xlsx`);
+    } catch (err) {
+      next(err);
+    }
+  },
+);
+
 router.get("/promedio-gruas", ...filtrosValidos, async (req, res, next) => {
   try {
     const { desde, hasta } = req.query;

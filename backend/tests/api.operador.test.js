@@ -720,6 +720,49 @@ test("el administrador cierra un turno olvidado con motivo", async () => {
   assert.strictEqual(r.datos.turno.estado, "cerrado_admin");
 });
 
+test("panel de turnos: en curso, historial con horas y servicios, resumen por operador y Excel", async () => {
+  const inicio = await api("POST", "/api/turnos/iniciar", { token: tokens.op2, body: { grua_id: ids.grua2 } });
+  assert.strictEqual(inicio.status, 201, JSON.stringify(inicio.datos));
+  const id = inicio.datos.turno.id;
+  // Simula que lleva 3 horas en turno
+  await pool.query("UPDATE turnos_operador SET inicio = now() - interval '3 hours' WHERE id = $1", [id]);
+
+  // Quién está en turno: solo el administrador
+  assert.strictEqual((await api("GET", "/api/turnos/en-curso", { token: tokens.fin })).status, 403);
+  assert.strictEqual((await api("GET", "/api/turnos/en-curso", { token: tokens.op1 })).status, 403);
+  const enCurso = (await api("GET", "/api/turnos/en-curso", { token: tokens.admin })).datos.turnos;
+  const actual = enCurso.find((t) => t.id === id);
+  assert.ok(actual, "el turno activo debe aparecer en curso");
+  assert.ok(actual.duracion_min >= 179 && actual.duracion_min <= 181);
+  assert.strictEqual(actual.operador_nombre, "Operador Prueba Dos");
+
+  // Historial filtrado por operador y estado
+  const activos = (await api("GET", `/api/turnos?operador_id=${inicio.datos.turno.operador_id}&estado=activo`, { token: tokens.admin })).datos.turnos;
+  assert.deepStrictEqual(activos.map((t) => t.id), [id]);
+  assert.strictEqual(activos[0].servicios, 0);
+  const cerrados = (await api("GET", `/api/turnos?operador_id=${inicio.datos.turno.operador_id}&estado=cerrado_admin`, { token: tokens.admin })).datos.turnos;
+  assert.ok(cerrados.length >= 1 && cerrados[0].cerrado_por_nombre);
+
+  // Resumen por operador
+  const resumen = (await api("GET", `/api/turnos/resumen?operador_id=${inicio.datos.turno.operador_id}`, { token: tokens.admin })).datos.operadores;
+  assert.strictEqual(resumen.length, 1);
+  assert.strictEqual(resumen[0].activos, 1);
+  assert.ok(resumen[0].cerrados_admin >= 1);
+  assert.ok(resumen[0].minutos >= 180);
+  assert.strictEqual(resumen[0].turnos, activos.length + cerrados.length + (await api("GET", `/api/turnos?operador_id=${inicio.datos.turno.operador_id}&estado=finalizado`, { token: tokens.admin })).datos.turnos.length);
+
+  // Excel
+  const xls = await fetch(`${base}/api/exportar/turnos?operador_id=${inicio.datos.turno.operador_id}`, { headers: { Authorization: `Bearer ${tokens.admin}` } });
+  assert.strictEqual(xls.status, 200);
+  const ExcelJS = require("exceljs");
+  const libro = new ExcelJS.Workbook();
+  await libro.xlsx.load(Buffer.from(await xls.arrayBuffer()));
+  assert.strictEqual(libro.getWorksheet("Turnos").rowCount, resumen[0].turnos + 2); // encabezado + turnos + TOTAL
+  assert.strictEqual((await fetch(`${base}/api/exportar/turnos`, { headers: { Authorization: `Bearer ${tokens.fin}` } })).status, 403);
+
+  await api("POST", `/api/turnos/${id}/cerrar`, { token: tokens.admin, body: { motivo: "Fin de la prueba del panel" } });
+});
+
 test("cada operación importante quedó en la bitácora", async () => {
   const { rows } = await pool.query("SELECT DISTINCT operacion FROM bitacora ORDER BY 1");
   const operaciones = rows.map((r) => r.operacion);

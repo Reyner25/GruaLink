@@ -91,6 +91,18 @@ Se borraron las pantallas del panel anterior (`PanelPage`, `ListadoOrdenesPage`,
 - Precio: el del concepto "Recargo nocturno" del cliente (o el general).
 - Código: `esNocturno` y `aplicarRecargoNocturno` en `backend/services/tarifa.service.js` (constantes `RECARGO_NOCTURNO`). Los servicios anteriores no se recalcularon.
 
+## 5.3 Turnos de los operadores (24/11/2026)
+
+Menú **Turnos** (solo administrador, permiso `turnos:ver_todos`). Muestra los turnos **reales**, tal como los registran los operadores en el celular. No hay horario programado (decisión del usuario).
+
+- **En turno ahora:** operador, grúa, hora de inicio, cuánto lleva y servicios del turno. Si lleva más de 12 h, aparece la marca "¿Olvidó cerrarlo?". El botón **Cerrar turno** lo cierra con motivo obligatorio y queda en la bitácora.
+- **Filtros:** fechas (por inicio del turno, hora de Colombia), operador, grúa y estado (en turno · finalizado · cerrado por admin.).
+- **Indicadores y resumen por operador:** turnos, horas trabajadas, promedio por turno, turno más largo, servicios (sin contar anulados) y turnos que tuvo que cerrar el administrador.
+- **Historial:** inicio, fin, duración, servicios y estado. Al pasar el mouse sobre el estado se ven las observaciones. Muestra hasta 200 turnos; el Excel trae todos.
+- **Excel:** `GET /api/exportar/turnos`, con los mismos filtros.
+- **API:** `GET /api/turnos` (ahora con `grua_id`, `estado`, duración y servicios por turno), `GET /api/turnos/en-curso`, `GET /api/turnos/resumen`, `POST /api/turnos/:id/cerrar` (ya existía).
+- Sin cambios en la base de datos.
+
 ## 5.2 Pago al operador (23/11/2026, antes P11)
 
 **Configuración:** *Tarifas → Pago a operadores*. Reglas con vigencia, igual que las tarifas: una regla usada no se modifica, solo se cierra su vigencia y se crea otra. Para cada parte del servicio se usa la regla propia del cliente y, si no tiene, la de **Cualquier otra empresa**.

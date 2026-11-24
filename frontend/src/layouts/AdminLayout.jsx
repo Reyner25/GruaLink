@@ -30,6 +30,7 @@ import {
 import MenuIcon from "@mui/icons-material/Menu";
 import DashboardIcon from "@mui/icons-material/Dashboard";
 import AssignmentIcon from "@mui/icons-material/Assignment";
+import ScheduleIcon from "@mui/icons-material/Schedule";
 import InsightsIcon from "@mui/icons-material/Insights";
 import RouteIcon from "@mui/icons-material/Route";
 import PaymentsIcon from "@mui/icons-material/Payments";
@@ -51,6 +52,7 @@ const MENU = [
   { seccion: "Operación" },
   { texto: "Inicio", ruta: "/admin", icono: <DashboardIcon />, exacta: true },
   { texto: "Servicios", ruta: "/admin/servicios", icono: <AssignmentIcon /> },
+  { texto: "Turnos", ruta: "/admin/turnos", icono: <ScheduleIcon />, permiso: "turnos:ver_todos" },
   { seccion: "Administración" },
   { texto: "Tarifas", ruta: "/admin/tarifas", icono: <PriceChangeIcon />, permiso: "tarifas:ver" },
   { texto: "Clientes", ruta: "/admin/clientes", icono: <BusinessIcon />, permiso: "clientes:ver" },

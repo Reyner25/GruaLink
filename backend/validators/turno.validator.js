@@ -38,6 +38,8 @@ const validarListado = [
   // Solo se VALIDA el query; la conversión a número se hace en el controlador
   // porque en Express 5 req.query no se puede modificar.
   query("operador_id").optional().isInt({ min: 1 }),
+  query("grua_id").optional().isInt({ min: 1 }),
+  query("estado").optional().isIn(["activo", "finalizado", "cerrado_admin"]).withMessage("Estado inválido"),
   query("limite").optional().isInt({ min: 1, max: 200 }),
   query("pagina").optional().isInt({ min: 1 }),
   resultadoValidacion,

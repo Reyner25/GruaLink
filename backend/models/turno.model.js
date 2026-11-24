@@ -13,10 +13,35 @@ const SELECT_TURNO = `
   SELECT t.id, t.operador_id, t.grua_id, t.inicio, t.fin, t.estado,
          t.observaciones_inicio, t.observaciones_cierre, t.cerrado_por,
          g.placa AS grua_placa, g.numero_interno AS grua_numero,
-         u.nombre AS operador_nombre
+         u.nombre AS operador_nombre,
+         cp.nombre AS cerrado_por_nombre,
+         -- Minutos trabajados (si sigue activo, hasta ahora)
+         round(EXTRACT(EPOCH FROM (COALESCE(t.fin, now()) - t.inicio)) / 60)::int AS duracion_min,
+         (SELECT count(*)::int FROM servicios s WHERE s.turno_id = t.id AND s.estado <> 'anulado') AS servicios
   FROM turnos_operador t
   JOIN gruas g ON g.id = t.grua_id
-  JOIN usuarios u ON u.id = t.operador_id`;
+  JOIN usuarios u ON u.id = t.operador_id
+  LEFT JOIN usuarios cp ON cp.id = t.cerrado_por`;
+
+/**
+ * Filtros del historial y del resumen (por fecha de INICIO del turno, en hora
+ * de Colombia). Devuelve { where, valores } listos para la consulta.
+ */
+function filtrosTurnos({ operadorId, gruaId, estado, desde, hasta }) {
+  const condiciones = [];
+  const valores = [];
+  const agregar = (sql, valor) => {
+    if (valor === undefined || valor === null || valor === "") return;
+    valores.push(valor);
+    condiciones.push(sql.replace("?", `$${valores.length}`));
+  };
+  agregar("t.operador_id = ?", operadorId);
+  agregar("t.grua_id = ?", gruaId);
+  agregar("t.estado = ?", estado);
+  agregar("t.inicio >= ?::date", desde);
+  agregar("t.inicio < ?::date + 1", hasta);
+  return { where: condiciones.length ? `WHERE ${condiciones.join(" AND ")}` : "", valores };
+}
 
 const TurnoModel = {
   /**
@@ -63,24 +88,43 @@ const TurnoModel = {
     return this.obtenerPorId(id, { client });
   },
 
-  async listar({ operadorId, desde, hasta, limite = 30, pagina = 1 }) {
-    const condiciones = [];
-    const valores = [];
-    const agregar = (sql, valor) => {
-      valores.push(valor);
-      condiciones.push(sql.replace("?", `$${valores.length}`));
-    };
-    if (operadorId) agregar("t.operador_id = ?", operadorId);
-    if (desde) agregar("t.inicio >= ?::date", desde);
-    if (hasta) agregar("t.inicio < ?::date + 1", hasta);
-
-    const where = condiciones.length ? `WHERE ${condiciones.join(" AND ")}` : "";
+  async listar({ operadorId, gruaId, estado, desde, hasta, limite = 30, pagina = 1 }) {
+    const { where, valores } = filtrosTurnos({ operadorId, gruaId, estado, desde, hasta });
     valores.push(limite, (pagina - 1) * limite);
     const { rows } = await pool.query(
       `${SELECT_TURNO}
        ${where}
        ORDER BY t.inicio DESC
        LIMIT $${valores.length - 1} OFFSET $${valores.length}`,
+      valores,
+    );
+    return rows;
+  },
+
+  // Operadores en turno AHORA (todos los turnos activos), el más antiguo primero
+  async activos() {
+    const { rows } = await pool.query(`${SELECT_TURNO} WHERE t.estado = 'activo' ORDER BY t.inicio`);
+    return rows;
+  },
+
+  /**
+   * Resumen por operador en el periodo: turnos, minutos trabajados, turno más
+   * largo, servicios y turnos que tuvo que cerrar el administrador.
+   */
+  async resumenPorOperador(filtros) {
+    const { where, valores } = filtrosTurnos(filtros);
+    const { rows } = await pool.query(
+      `SELECT x.operador_id, x.operador_nombre,
+              count(*)::int AS turnos,
+              sum(x.duracion_min)::int AS minutos,
+              round(avg(x.duracion_min))::int AS promedio_min,
+              max(x.duracion_min)::int AS max_min,
+              sum(x.servicios)::int AS servicios,
+              count(*) FILTER (WHERE x.estado = 'cerrado_admin')::int AS cerrados_admin,
+              count(*) FILTER (WHERE x.estado = 'activo')::int AS activos
+       FROM (${SELECT_TURNO} ${where}) AS x
+       GROUP BY x.operador_id, x.operador_nombre
+       ORDER BY x.operador_nombre`,
       valores,
     );
     return rows;

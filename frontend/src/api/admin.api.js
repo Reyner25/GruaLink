@@ -24,6 +24,27 @@ export async function promedioGruas(filtros) {
   return data;
 }
 
+// ---------- Turnos de los operadores ----------
+export async function turnosEnCurso() {
+  const { data } = await api.get("/turnos/en-curso");
+  return data.turnos;
+}
+
+export async function listarTurnos(filtros) {
+  const { data } = await api.get("/turnos", { params: limpiar({ limite: 200, ...filtros }) });
+  return data.turnos;
+}
+
+export async function resumenTurnos(filtros) {
+  const { data } = await api.get("/turnos/resumen", { params: limpiar(filtros) });
+  return data.operadores;
+}
+
+export async function cerrarTurno(id, motivo) {
+  const { data } = await api.post(`/turnos/${id}/cerrar`, { motivo });
+  return data.turno;
+}
+
 // ---------- Pago a operadores ----------
 export async function liquidacionOperadores(filtros) {
   const { data } = await api.get("/liquidacion-operadores", { params: limpiar(filtros) });
