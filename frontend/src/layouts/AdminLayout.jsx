@@ -63,7 +63,7 @@ const MENU = [
   { seccion: "Reportes" },
   { texto: "Cobro", ruta: "/admin/reportes/cobro", icono: <RequestQuoteIcon />, permiso: "valores:ver" },
   { texto: "Promedio de grúas", ruta: "/admin/reportes/promedio-gruas", icono: <InsightsIcon /> },
-  { texto: "Bolsa de km (Suma)", ruta: "/admin/reportes/bolsa-km", icono: <RouteIcon />, permiso: "reportes:ver" },
+  { texto: "Bolsa de kilómetros", ruta: "/admin/reportes/bolsa-km", icono: <RouteIcon />, permiso: "reportes:ver" },
   { texto: "Pago a operadores", ruta: "/admin/reportes/pago-operadores", icono: <PaymentsIcon />, permiso: "valores:ver" },
   { seccion: "Control" },
   { texto: "Bitácora", ruta: "/admin/bitacora", icono: <HistoryEduIcon />, permiso: "bitacora:ver" },

@@ -460,7 +460,7 @@ export function DialogoAprobar({ abierto, onCerrar, onListo, servicio }) {
           )}
           {servicio.tarifa_bolsa_id && servicio.bolsa_km_mes === null && (
             <Alert severity="warning">
-              Bolsa de km: el mes aún no termina y el valor es PROVISIONAL (columna provisional de la bolsa). Si se aprueba ahora, queda fijo y no se ajusta con la
+              Bolsa de kilómetros: el mes aún no termina y el valor es PROVISIONAL (columna provisional de la bolsa). Si se aprueba ahora, queda fijo y no se ajusta con la
               columna real del mes.
             </Alert>
           )}

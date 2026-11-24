@@ -515,9 +515,9 @@ test("corrección completa: cambiar la empresa y poner una tarifa manual", async
   const ExcelJS = require("exceljs");
   const libro = new ExcelJS.Workbook();
   await libro.xlsx.load(Buffer.from(await xls.arrayBuffer()));
-  assert.deepStrictEqual(libro.worksheets.map((w) => w.name), ["Tarifa básica", "Precios de conceptos", "Pago a operadores", "Bolsa de km (Suma)"]);
+  assert.deepStrictEqual(libro.worksheets.map((w) => w.name), ["Tarifa básica", "Precios de conceptos", "Pago a operadores", "Bolsa de kilómetros"]);
   assert.ok(libro.getWorksheet("Tarifa básica").rowCount > 10);
-  assert.strictEqual(libro.getWorksheet("Bolsa de km (Suma)").rowCount, 115); // encabezado + 114 celdas
+  assert.strictEqual(libro.getWorksheet("Bolsa de kilómetros").rowCount, 115); // encabezado + 114 celdas
   assert.strictEqual((await fetch(`${base}/api/exportar/tarifas`, { headers: { Authorization: `Bearer ${tokens.op1}` } })).status, 403);
 });
 

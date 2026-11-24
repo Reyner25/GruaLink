@@ -264,7 +264,7 @@ export default function BolsaKmTabla({ editar }) {
   if (clientes.cargando && !clientes.datos) return <Cargando />;
   if (clientes.error) return <ErrorCarga mensaje={clientes.error} onReintentar={clientes.recargar} />;
   if (clientes.datos.length === 0) {
-    return <Alert severity="info">Ningún cliente se cobra por bolsa de km. Se configura en Clientes → Modalidad de cobro.</Alert>;
+    return <Alert severity="info">Ningún cliente se cobra por bolsa de kilómetros. Se configura en Clientes → Modalidad de cobro.</Alert>;
   }
 
   const t = tabla.datos;
@@ -347,7 +347,7 @@ export default function BolsaKmTabla({ editar }) {
 
       {tabla.cargando && !t && <Cargando />}
       {tabla.error && <ErrorCarga mensaje={tabla.error} onReintentar={tabla.recargar} />}
-      {t && !t.vigencia && <Alert severity="info">Este cliente aún no tiene tabla de bolsa de km.</Alert>}
+      {t && !t.vigencia && <Alert severity="info">Este cliente aún no tiene tabla de bolsa de kilómetros.</Alert>}
       {t?.vigencia && (
         <Card>
           <CardContent>

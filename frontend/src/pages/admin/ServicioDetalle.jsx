@@ -397,11 +397,11 @@ export default function ServicioDetalle() {
                       {s.cliente_modalidad_cobro === "bolsa_km_mensual" && (
                         <Typography variant="caption" color="text.secondary" component="div">
                           {s.tarifa_bolsa_id && s.bolsa_km_mes === null
-                            ? `Bolsa de km: mes abierto → columna PROVISIONAL ${formatoNumero(Math.floor(s.bolsa_columna_desde))}${s.bolsa_columna_hasta === null ? " km o más" : `–${formatoNumero(s.bolsa_columna_hasta)} km`} (al terminar el mes se recalcula con la columna real)${
+                            ? `Bolsa de kilómetros: mes abierto → columna PROVISIONAL ${formatoNumero(Math.floor(s.bolsa_columna_desde))}${s.bolsa_columna_hasta === null ? " km o más" : `–${formatoNumero(s.bolsa_columna_hasta)} km`} (al terminar el mes se recalcula con la columna real)${
                                 s.bolsa_forma === "por_km" ? ` · menos de 10 km: ${formatoMoneda(s.bolsa_valor)} por km` : ""
                               }`
                             : s.tarifa_bolsa_id
-                            ? `Bolsa de km: ${formatoNumero(s.bolsa_km_mes)} km en el mes → columna ${formatoNumero(Math.floor(s.bolsa_columna_desde))}${
+                            ? `Bolsa de kilómetros: ${formatoNumero(s.bolsa_km_mes)} km en el mes → columna ${formatoNumero(Math.floor(s.bolsa_columna_desde))}${
                                 s.bolsa_columna_hasta === null ? " km o más" : `–${formatoNumero(s.bolsa_columna_hasta)} km`
                               }${s.bolsa_forma === "por_km" ? ` · menos de 10 km: ${formatoMoneda(s.bolsa_valor)} por km` : ""}`
                             : s.fuera_disponibilidad

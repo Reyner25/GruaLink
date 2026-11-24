@@ -71,9 +71,9 @@ export default function BolsaKm() {
   return (
     <>
       <EncabezadoPagina
-        titulo="Bolsa de km"
+        titulo="Bolsa de kilómetros"
         descripcion="Clientes que se cobran por kilometraje mensual: la suma de km del mes define la columna de la tabla."
-        migas={[{ texto: "Reportes" }, { texto: "Bolsa de km" }]}
+        migas={[{ texto: "Reportes" }, { texto: "Bolsa de kilómetros" }]}
         acciones={
           clienteId &&
           puede(usuario, "servicios:corregir") && (
@@ -98,7 +98,7 @@ export default function BolsaKm() {
         </CardContent>
       </Card>
 
-      {clientes.datos && clientes.datos.length === 0 && <Alert severity="info">Ningún cliente se cobra por bolsa de km. Se configura en Clientes → Modalidad de cobro.</Alert>}
+      {clientes.datos && clientes.datos.length === 0 && <Alert severity="info">Ningún cliente se cobra por bolsa de kilómetros. Se configura en Clientes → Modalidad de cobro.</Alert>}
       {(bolsa.cargando || clientes.cargando) && !d && <Cargando />}
       {bolsa.error && <ErrorCarga mensaje={bolsa.error} onReintentar={bolsa.recargar} />}
       {d && (

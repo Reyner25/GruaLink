@@ -120,7 +120,7 @@ export default function Tarifas() {
           <Tab value="basica" label="Tarifa básica" />
           <Tab value="conceptos" label="Precios de conceptos" />
           <Tab value="operadores" label="Pago a operadores" />
-          <Tab value="bolsa" label="Bolsa de km (Suma)" />
+          <Tab value="bolsa" label="Bolsa de kilómetros" />
         </Tabs>
       </Card>
 

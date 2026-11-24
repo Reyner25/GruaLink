@@ -401,7 +401,7 @@ router.get(
             })),
           },
           {
-            nombre: "Bolsa de km (Suma)",
+            nombre: "Bolsa de kilómetros",
             columnas: [
               { titulo: "Cliente", campo: "cliente", ancho: 16 },
               { titulo: "Km del mes desde", campo: "bolsa_km_desde", formato: "numero", ancho: 12 },

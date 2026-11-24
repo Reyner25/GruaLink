@@ -28,7 +28,7 @@ export default function Clientes() {
           { campo: "nit", titulo: "NIT" },
           { campo: "telefono", titulo: "Teléfono" },
           { campo: "email", titulo: "Correo" },
-          { campo: "modalidad_cobro", titulo: "Cobro", render: (f) => (f.modalidad_cobro === "bolsa_km_mensual" ? <Chip size="small" label="Bolsa de km" color="secondary" /> : "Por servicio") },
+          { campo: "modalidad_cobro", titulo: "Cobro", render: (f) => (f.modalidad_cobro === "bolsa_km_mensual" ? <Chip size="small" label="Bolsa de kilómetros" color="secondary" /> : "Por servicio") },
           { campo: "activo", titulo: "Estado", render: activo },
         ]}
         campos={[
@@ -46,9 +46,9 @@ export default function Clientes() {
             porDefecto: "por_servicio",
             opciones: [
               { valor: "por_servicio", texto: "Por servicio (tarifas normales)" },
-              { valor: "bolsa_km_mensual", texto: "Bolsa de km mensual (como Suma)" },
+              { valor: "bolsa_km_mensual", texto: "Bolsa de kilómetros mensual (ej. Suma)" },
             ],
-            ayuda: "Bolsa de km: el valor depende de los km de todos sus servicios del mes (tabla propia, ver Reportes → Bolsa de km)",
+            ayuda: "Bolsa de kilómetros: el valor depende de los km de todos sus servicios del mes (tabla en Tarifas → Bolsa de kilómetros)",
           },
           { campo: "activo", etiqueta: "Activo (aparece en el celular)", tipo: "booleano" },
         ]}
