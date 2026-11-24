@@ -46,12 +46,23 @@ const camposTarifa = (opcional) => [
   c.fecha("vigente_hasta", { opcional: true, nulable: true }),
 ];
 
+// Hora "HH:MM" o null (horario del recargo nocturno)
+const horaNulable = (campo) =>
+  body(campo)
+    .optional({ values: "undefined" })
+    .customSanitizer((v) => (typeof v === "string" ? v.trim().slice(0, 5) || null : v))
+    .custom((v) => v === null || (typeof v === "string" && /^([01]\d|2[0-3]):[0-5]\d$/.test(v)))
+    .withMessage("Hora inválida (formato HH:MM, ej. 19:00)");
+
 const camposPrecio = (opcional) => [
   c.entero("concepto_id", { opcional, mensaje: "Concepto inválido" }),
   clienteId(opcional),
   c.dinero("valor", { opcional }),
   c.fecha("vigente_desde", { opcional }),
   c.fecha("vigente_hasta", { opcional: true, nulable: true }),
+  // Solo en el precio del "Recargo nocturno": se cobra si el servicio termina después de "desde" y antes de "hasta"
+  horaNulable("recargo_desde"),
+  horaNulable("recargo_hasta"),
 ];
 
 const filtrosListado = [

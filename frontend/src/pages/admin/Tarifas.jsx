@@ -178,8 +178,9 @@ export default function Tarifas() {
       {pestana === "conceptos" && (
         <>
         <Alert severity="info" sx={{ mb: 2 }}>
-          El <b>horario del recargo nocturno</b> (desde qué hora se cobra) se configura en <b>Catálogos → Conceptos → Recargo nocturno</b> (hora general) y en{" "}
-          <b>Clientes → Recargo nocturno desde</b> (hora propia de un cliente). Aquí solo va su precio.
+          <b>Recargo nocturno:</b> además del precio, cada fila lleva su <b>horario</b>: se cobra si el servicio termina después de la hora "desde" y antes de
+          la hora "hasta" (madrugada). La fila de <b>Clientes generales</b> es el horario general (20:40 a 06:00); en la de un cliente se pone solo si tiene
+          uno propio (ej. La Rolita 19:00). El horario se puede cambiar aunque el precio ya esté en uso.
         </Alert>
         <CrudCatalogo
           ruta="/precios-concepto"
@@ -196,6 +197,16 @@ export default function Tarifas() {
             { campo: "unidad_cobro", titulo: "Unidad", render: (f) => UNIDADES_COBRO[f.unidad_cobro] || f.unidad_cobro },
             { campo: "cliente_nombre", titulo: "Cliente" },
             { campo: "valor", titulo: "Valor", alinear: "right", render: (f) => formatoMoneda(f.valor) },
+            {
+              campo: "recargo_desde",
+              titulo: "Horario recargo",
+              render: (f) =>
+                f.es_recargo_nocturno
+                  ? f.recargo_desde || f.recargo_hasta
+                    ? `${f.recargo_desde || "(general)"} a ${f.recargo_hasta || "(general)"}`
+                    : "El general"
+                  : "—",
+            },
             { campo: "vigencia", titulo: "Vigencia", render: vigencia },
             { campo: "usada", titulo: "Uso", render: uso },
           ]}
@@ -210,6 +221,25 @@ export default function Tarifas() {
             campoCliente,
             bloqueable({ campo: "valor", etiqueta: "Valor unitario", tipo: "dinero", requerido: true }),
             ...camposVigencia,
+            // Horario del recargo nocturno (solo en el concepto "Recargo nocturno"; se puede cambiar aunque el precio esté en uso)
+            {
+              campo: "recargo_desde",
+              etiqueta: "Recargo nocturno: se cobra si el servicio termina después de",
+              tipo: "hora",
+              nulable: true,
+              deshabilitado: (f) => Boolean(f) && !f.es_recargo_nocturno,
+              ayudaBloqueado: "Solo para el concepto Recargo nocturno",
+              ayuda: "Solo para Recargo nocturno. Clientes generales: ej. 20:40. Cliente: vacío = usa el horario general",
+            },
+            {
+              campo: "recargo_hasta",
+              etiqueta: "…y antes de (madrugada)",
+              tipo: "hora",
+              nulable: true,
+              deshabilitado: (f) => Boolean(f) && !f.es_recargo_nocturno,
+              ayudaBloqueado: "Solo para el concepto Recargo nocturno",
+              ayuda: "Ej. 06:00. Vacío = usa el horario general",
+            },
           ]}
         />
         </>

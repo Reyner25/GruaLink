@@ -34,8 +34,8 @@ const { errorNegocio } = require("../utils/errores");
 // Redondea a 2 decimales (centavos) para que coincida con NUMERIC(12,2)
 const redondear = (n) => Math.round(Number(n) * 100) / 100;
 
-// Valores por defecto. Los reales se editan en Catálogos → Conceptos →
-// "Recargo nocturno" (conceptos_tarifa.recargo_desde / recargo_hasta, migración 012).
+// Valores por defecto. Los reales se editan en Tarifas → Precios de conceptos →
+// fila "Recargo nocturno" de cada cliente o general (migración 014).
 const RECARGO_NOCTURNO = {
   desdeGeneral: "20:40", // hora de corte de "Clientes generales"
   hasta: "06:00", // hasta esta hora de la madrugada sigue aplicando
@@ -66,11 +66,12 @@ function esNocturno(finServicio, desde = RECARGO_NOCTURNO.desdeGeneral, hasta = 
  *   "auto" = según la hora de fin y el horario del recargo · "si" = siempre · "no" = nunca
  * Devuelve la lista final de conceptos.
  */
-async function aplicarRecargoNocturno({ conceptos = [], clienteId, finServicio, modo = "auto" }, opciones) {
-  const regla = await TarifaModel.reglaRecargoNocturno(clienteId, opciones);
+async function aplicarRecargoNocturno({ conceptos = [], clienteId, fecha, finServicio, modo = "auto" }, opciones) {
+  // Horario: el del precio del recargo del cliente (Tarifas → Precios de conceptos) o el general
+  const regla = await TarifaModel.reglaRecargoNocturno(clienteId, fecha, opciones);
   if (!regla.concepto_id) return { conceptos, automaticos: new Set() };
   const sinRecargo = conceptos.filter((c) => c.concepto_id !== regla.concepto_id);
-  const desde = regla.desde || regla.desde_general || RECARGO_NOCTURNO.desdeGeneral;
+  const desde = regla.desde || RECARGO_NOCTURNO.desdeGeneral;
   const hasta = regla.hasta || RECARGO_NOCTURNO.hasta;
   const aplica = modo === "si" || (modo !== "no" && esNocturno(finServicio, desde, hasta));
   if (!aplica) return { conceptos: sinRecargo, automaticos: new Set() };
@@ -238,7 +239,7 @@ async function calcularValores(
 
   const km = kmFacturables({ kmServicio });
   // La hora de corte del recargo es la del cliente; el precio, el de su tarifa
-  const conRecargo = await aplicarRecargoNocturno({ conceptos, clienteId, finServicio, modo: recargoModo }, opciones);
+  const conRecargo = await aplicarRecargoNocturno({ conceptos, clienteId, fecha, finServicio, modo: recargoModo }, opciones);
   const adicionales = await calcularConceptos(
     { conceptos: conRecargo.conceptos, clienteId: clienteTarifa, fecha, soloOperador, automaticos: conRecargo.automaticos },
     opciones,

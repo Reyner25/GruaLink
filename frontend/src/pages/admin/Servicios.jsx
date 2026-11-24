@@ -21,6 +21,7 @@ import {
   Typography,
 } from "@mui/material";
 import SearchIcon from "@mui/icons-material/Search";
+import RequestQuoteIcon from "@mui/icons-material/RequestQuote";
 import { useCargar } from "../../hooks/useCargar";
 import { listarServiciosAdmin } from "../../api/admin.api";
 import { formatoFecha, formatoHora, formatoMoneda } from "../../utils/formato";
@@ -64,6 +65,10 @@ export default function Servicios() {
         // Órdenes en PDF: una página por servicio, con los mismos filtros
         acciones={
           <>
+            {/* Cobro mensual a las empresas (Reportes → Cobro) */}
+            <Button variant="outlined" startIcon={<RequestQuoteIcon />} onClick={() => navigate("/admin/reportes/cobro")}>
+              Cobro
+            </Button>
             <BotonExportar reporte="ordenes" filtros={filtros} tipo="pdf" texto="Órdenes en PDF" variant="outlined" />
             <BotonExportar reporte="servicios" filtros={filtros} />
           </>

@@ -34,6 +34,7 @@ import ScheduleIcon from "@mui/icons-material/Schedule";
 import InsightsIcon from "@mui/icons-material/Insights";
 import RouteIcon from "@mui/icons-material/Route";
 import PaymentsIcon from "@mui/icons-material/Payments";
+import RequestQuoteIcon from "@mui/icons-material/RequestQuote";
 import HistoryEduIcon from "@mui/icons-material/HistoryEdu";
 import LogoutIcon from "@mui/icons-material/Logout";
 import PriceChangeIcon from "@mui/icons-material/PriceChange";
@@ -60,6 +61,7 @@ const MENU = [
   { texto: "Catálogos", ruta: "/admin/catalogos", icono: <ListAltIcon />, permiso: "catalogos:ver" },
   { texto: "Usuarios", ruta: "/admin/usuarios", icono: <PeopleIcon />, permiso: "usuarios:gestionar" },
   { seccion: "Reportes" },
+  { texto: "Cobro", ruta: "/admin/reportes/cobro", icono: <RequestQuoteIcon />, permiso: "valores:ver" },
   { texto: "Promedio de grúas", ruta: "/admin/reportes/promedio-gruas", icono: <InsightsIcon /> },
   { texto: "Bolsa de km (Suma)", ruta: "/admin/reportes/bolsa-km", icono: <RouteIcon />, permiso: "reportes:ver" },
   { texto: "Pago a operadores", ruta: "/admin/reportes/pago-operadores", icono: <PaymentsIcon />, permiso: "valores:ver" },

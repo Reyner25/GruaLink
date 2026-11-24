@@ -5,7 +5,7 @@
 const { pool } = require("../config/db");
 
 // Arma el WHERE de servicios según los filtros recibidos
-function filtrosServicios({ desde, hasta, clienteId, gruaId, operadorId, estado, servicioId }) {
+function filtrosServicios({ desde, hasta, clienteId, gruaId, operadorId, estado, servicioId, servicioIds }) {
   const condiciones = [];
   const valores = [];
   const agregar = (sql, valor) => {
@@ -20,6 +20,7 @@ function filtrosServicios({ desde, hasta, clienteId, gruaId, operadorId, estado,
   agregar("s.operador_id = ?", operadorId);
   agregar("s.estado = ?", estado);
   agregar("s.id = ?", servicioId); // un solo servicio (PDF de una orden)
+  agregar("s.id = ANY(?::int[])", servicioIds); // una lista (órdenes del cobro mensual)
   return { where: condiciones.length ? `WHERE ${condiciones.join(" AND ")}` : "", valores };
 }
 

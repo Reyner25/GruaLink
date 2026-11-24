@@ -45,6 +45,12 @@ export async function cerrarTurno(id, motivo) {
   return data.turno;
 }
 
+// ---------- Cobro mensual a las empresas ----------
+export async function resumenCobro(filtros) {
+  const { data } = await api.get("/cobro", { params: limpiar(filtros) });
+  return data;
+}
+
 // ---------- Pago a operadores ----------
 export async function liquidacionOperadores(filtros) {
   const { data } = await api.get("/liquidacion-operadores", { params: limpiar(filtros) });

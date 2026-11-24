@@ -38,7 +38,8 @@ const USO_PRECIO = `
 
 const SELECT_PRECIOS = `
   SELECT p.id, p.concepto_id, p.cliente_id, p.valor, p.vigente_desde, p.vigente_hasta,
-         ct.nombre AS concepto, ct.unidad_cobro,
+         to_char(p.recargo_desde, 'HH24:MI') AS recargo_desde, to_char(p.recargo_hasta, 'HH24:MI') AS recargo_hasta,
+         ct.nombre AS concepto, ct.unidad_cobro, ct.es_recargo_nocturno,
          COALESCE(c.nombre_comercial, c.razon_social, 'Clientes generales') AS cliente_nombre,
          EXISTS (SELECT 1 ${USO_PRECIO}) AS usada,
          (SELECT max(s.fecha_servicio) ${USO_PRECIO}) AS ultima_fecha_uso
@@ -55,7 +56,8 @@ const TarifaAdminModel = crearModeloCrud({
 
 const PrecioConceptoModel = crearModeloCrud({
   tabla: "precios_concepto",
-  columnas: ["concepto_id", "cliente_id", "valor", "vigente_desde", "vigente_hasta"],
+  // recargo_desde / recargo_hasta: horario del recargo nocturno (solo en ese concepto)
+  columnas: ["concepto_id", "cliente_id", "valor", "vigente_desde", "vigente_hasta", "recargo_desde", "recargo_hasta"],
   select: SELECT_PRECIOS,
   orden: "concepto, cliente_id NULLS FIRST, vigente_desde DESC",
 });

@@ -86,7 +86,7 @@ Se borraron las pantallas del panel anterior (`PanelPage`, `ListadoOrdenesPage`,
 ## 5.1 Recargo nocturno (23/11/2026; horario editable y control manual desde el 24/11/2026)
 
 - **Automático**: se cobra si el servicio **termina** después de la hora de corte y antes de la hora de fin de la madrugada (hora de Colombia).
-- **Horario general**: *Catálogos → Conceptos → Recargo nocturno* (por defecto 20:40 a 06:00). Hora propia de un cliente: *Clientes → Recargo nocturno desde* (La Rolita 19:00).
+- **Horario** (desde el 24/11/2026): *Tarifas → Precios de conceptos*, en la fila "Recargo nocturno" de cada precio. Clientes generales = horario general (20:40 a 06:00); en el precio de un cliente se pone solo si tiene horario propio (La Rolita 19:00); vacío = usa el general. Se puede cambiar aunque el precio ya esté en uso (el valor no). Ya no está en Clientes ni en Catálogos.
 - Límites: con corte 20:40, 20:40 exacto no lleva recargo y 20:41 sí; con fin 06:00, 05:59 sí y 06:00 no.
 - **El administrador decide** al corregir: *Recargo nocturno* = Automático (según la hora) · Aplicar siempre · No aplicar. En el detalle se indica cuando lo decidió el administrador.
 - Precio: el del concepto "Recargo nocturno" del cliente (o el general).
@@ -104,6 +104,21 @@ En *Corregir* el administrador puede cambiar **todos** los datos:
 - **Entrega y observaciones.**
 
 Al cambiar el cliente se recalcula con su tarifa y sus precios. El motivo es obligatorio y todo queda en la bitácora con los valores anteriores y nuevos.
+
+## 5.1.3 Cobro mensual a las empresas (24/11/2026)
+
+*Reportes → Cobro* (también el botón **Cobro** en *Servicios*). Administrador y financiero.
+
+- Se elige el **mes** (por defecto, el anterior). Entran los servicios **aprobados** del mes; opcional **"Incluir servicios sin aprobar"** (finalizados y en revisión, con el valor calculado; salen en amarillo).
+- Pantalla: por empresa, servicios, subtotal, IVA 19 % y total, y TOTAL GENERAL.
+- **Cobro en Excel**: igual al archivo que se enviaba ("AAAAMM Servicios de gruas cobro"):
+  - Hoja **RESUMEN**, con fórmulas a las hojas de cada empresa.
+  - **Una hoja por empresa**, con el título "SERVICIO DE GRÚA PRESTADOS A …" y estas columnas: placa de la grúa, orden, vehículo, tipo, empresa, operador, fecha, horas, origen, destino, tarifa, cardán/eje/tubo, persiana, cámaras, recargo nocturno, M. rescate, total a cobrar y observaciones. Al final van Sub Total, IVA 19 % y Total.
+  - **Suma**: columna **KM** y resumen por grúa.
+  - Si hay stand-by, kit o reiniciada, se agrega la columna "Otros adicionales".
+  - Si se aprobó un valor distinto al calculado, el total es el aprobado y la observación lo indica.
+- Por empresa: su **Excel** y sus **órdenes de servicio en PDF** (los mismos servicios del cobro).
+- API: `GET /api/cobro`, `GET /api/exportar/cobro`, `GET /api/exportar/cobro-ordenes` (mes, cliente_id, incluir_sin_aprobar). Código: `backend/services/cobro.service.js`.
 
 ## 5.1.2 Tarifas en Excel (24/11/2026)
 

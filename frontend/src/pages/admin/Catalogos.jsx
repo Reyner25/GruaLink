@@ -89,7 +89,7 @@ export default function Catalogos() {
                   <Chip
                     size="small"
                     color="info"
-                    label={`Automático: termina después de las ${String(f.recargo_desde || "20:40").slice(0, 5)} y antes de las ${String(f.recargo_hasta || "06:00").slice(0, 5)}`}
+                    label="Automático (horario en Tarifas → Precios de conceptos)"
                   />
                 ) : f.la_reporta_operador ? (
                   "Operador (celular)"
@@ -113,25 +113,6 @@ export default function Catalogos() {
               ayuda: "No se puede cambiar si el concepto ya se usó en servicios",
             },
             { campo: "la_reporta_operador", etiqueta: "El operador lo puede marcar en el celular", tipo: "booleano", porDefecto: true },
-            // Horario del recargo nocturno: solo en el concepto que el sistema usa como recargo
-            {
-              campo: "recargo_desde",
-              etiqueta: "Recargo nocturno: se cobra si el servicio termina después de",
-              tipo: "hora",
-              nulable: true,
-              deshabilitado: (f) => !f?.es_recargo_nocturno,
-              ayudaBloqueado: "Solo aplica al concepto \"Recargo nocturno\"",
-              ayuda: "Hora general (ej. 20:40). Un cliente puede tener la suya en Clientes → Recargo nocturno desde (ej. La Rolita 19:00)",
-            },
-            {
-              campo: "recargo_hasta",
-              etiqueta: "…y antes de (madrugada)",
-              tipo: "hora",
-              nulable: true,
-              deshabilitado: (f) => !f?.es_recargo_nocturno,
-              ayudaBloqueado: "Solo aplica al concepto \"Recargo nocturno\"",
-              ayuda: "Ej. 06:00",
-            },
             { campo: "activo", etiqueta: "Activo", tipo: "booleano" },
           ]}
         />

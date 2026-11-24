@@ -39,12 +39,7 @@ const camposCliente = (opcional) => [
   c.textoNulable("telefono", 30),
   emailNulable,
   c.textoNulable("direccion", 255),
-  // Hora de corte del recargo nocturno ("19:00"); vacío = la general (20:40)
-  body("recargo_nocturno_desde")
-    .optional({ values: "undefined" })
-    .customSanitizer((v) => (typeof v === "string" ? v.trim() || null : v))
-    .custom((v) => v === null || (typeof v === "string" && /^([01]\d|2[0-3]):[0-5]\d$/.test(v)))
-    .withMessage("Hora inválida (formato HH:MM, ej. 19:00)"),
+  // (La hora del recargo nocturno ya no va aquí: Tarifas → Precios de conceptos, migración 014)
   // Cómo se cobra: por servicio (tarifas normales) o por bolsa de km mensual (Suma)
   body("modalidad_cobro").optional({ values: "undefined" }).isIn(["por_servicio", "bolsa_km_mensual"]).withMessage("Modalidad de cobro inválida"),
   c.booleano("activo", { opcional: true }),

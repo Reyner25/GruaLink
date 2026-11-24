@@ -429,18 +429,32 @@ test("recargo nocturno: se aplica solo según la hora de fin y la hora de corte 
     d = await conceptos(lr.datos.servicio.id);
     assert.strictEqual(d.conceptos.find((c) => c.concepto_id === ids.recargo)?.total, 98000);
 
-    // ---- Horario general editable en Catálogos → Conceptos (migración 012) ----
+    // ---- Horario en Tarifas → Precios de conceptos (migración 014) ----
     const tieneRecargo = async (sid) => (await conceptos(sid)).conceptos.some((c) => c.concepto_id === ids.recargo);
+    const precioRecargo = async (cliente) =>
+      (await api("GET", `/api/precios-concepto?cliente_id=${cliente}&concepto_id=${ids.recargo}&vigente_en=${ids.ayer}`, { token: tokens.admin })).datos.precios[0];
+    const general = await precioRecargo("generales");
+    assert.strictEqual(general.recargo_desde, "20:40");
+    assert.strictEqual(general.recargo_hasta, "06:00");
+    assert.strictEqual((await precioRecargo(ids.laRolita)).recargo_desde, "19:00"); // hora propia de La Rolita
     await corregir(id, horas("21:00", "21:10", "21:30")); // 21:30 > 20:40 → recargo
     assert.strictEqual(await tieneRecargo(id), true);
-    const cambio = await api("PATCH", `/api/conceptos/${ids.recargo}`, { token: tokens.admin, body: { recargo_desde: "22:00", motivo: "Nuevo horario" } });
+    // Cambiar la hora general (se permite aunque el precio ya se haya usado)
+    const cambio = await api("PATCH", `/api/precios-concepto/${general.id}`, { token: tokens.admin, body: { recargo_desde: "22:00", motivo: "Nuevo horario" } });
     assert.strictEqual(cambio.status, 200, JSON.stringify(cambio.datos));
     await corregir(id, { motivo: "Recalcular con el nuevo horario", km_vacio: 1 });
     assert.strictEqual(await tieneRecargo(id), false); // 21:30 ya no pasa de 22:00
-    // El horario solo se pone en el concepto de recargo
-    const otro = await api("PATCH", `/api/conceptos/${ids.cardan}`, { token: tokens.admin, body: { recargo_desde: "22:00", motivo: "No aplica" } });
-    assert.strictEqual(otro.datos.codigo, "SOLO_RECARGO");
-    await api("PATCH", `/api/conceptos/${ids.recargo}`, { token: tokens.admin, body: { recargo_desde: "20:40", motivo: "Horario original" } });
+    // Hora propia del cliente (Bogotá Móvil 21:00): gana sobre la general
+    const propio = await precioRecargo(ids.bogotaMovil);
+    await api("PATCH", `/api/precios-concepto/${propio.id}`, { token: tokens.admin, body: { recargo_desde: "21:00", motivo: "Hora del cliente" } });
+    await corregir(id, { motivo: "Recalcular con la hora del cliente", km_vacio: 2 });
+    assert.strictEqual(await tieneRecargo(id), true); // 21:30 > 21:00
+    await api("PATCH", `/api/precios-concepto/${propio.id}`, { token: tokens.admin, body: { recargo_desde: null, motivo: "Usar la general" } });
+    // El horario solo se pone en el precio del recargo; el valor de un precio en uso sigue bloqueado
+    const cardan = (await api("GET", `/api/precios-concepto?cliente_id=generales&concepto_id=${ids.cardan}&vigente_en=${ids.ayer}`, { token: tokens.admin })).datos.precios[0];
+    assert.strictEqual((await api("PATCH", `/api/precios-concepto/${cardan.id}`, { token: tokens.admin, body: { recargo_desde: "22:00" } })).datos.codigo, "SOLO_RECARGO");
+    assert.strictEqual((await api("PATCH", `/api/precios-concepto/${general.id}`, { token: tokens.admin, body: { valor: 1 } })).datos.codigo, "TARIFA_EN_USO");
+    await api("PATCH", `/api/precios-concepto/${general.id}`, { token: tokens.admin, body: { recargo_desde: "20:40", motivo: "Horario original" } });
 
     // ---- El administrador decide el recargo: siempre / nunca / automático ----
     await corregir(id, horas("10:00", "10:15", "11:00")); // de día
@@ -454,7 +468,15 @@ test("recargo nocturno: se aplica solo según la hora de fin y la hora de corte 
     assert.strictEqual(await tieneRecargo(id), true);
   } finally {
     await recargoNocturnoActivo(false);
-    await pool.query("UPDATE conceptos_tarifa SET recargo_desde = '20:40', recargo_hasta = '06:00' WHERE es_recargo_nocturno");
+    await pool.query(
+      `UPDATE precios_concepto p SET recargo_desde = CASE WHEN p.cliente_id IS NULL THEN '20:40'::time ELSE p.recargo_desde END,
+              recargo_hasta = CASE WHEN p.cliente_id IS NULL THEN '06:00'::time ELSE p.recargo_hasta END
+       FROM conceptos_tarifa ct WHERE ct.id = p.concepto_id AND ct.es_recargo_nocturno`,
+    );
+    await pool.query(
+      `UPDATE precios_concepto SET recargo_desde = NULL WHERE cliente_id = $1 AND concepto_id = $2`,
+      [ids.bogotaMovil, ids.recargo],
+    );
   }
 });
 
@@ -922,6 +944,64 @@ test("panel de turnos: en curso, historial con horas y servicios, resumen por op
   assert.strictEqual((await fetch(`${base}/api/exportar/turnos`, { headers: { Authorization: `Bearer ${tokens.fin}` } })).status, 403);
 
   await api("POST", `/api/turnos/${id}/cerrar`, { token: tokens.admin, body: { motivo: "Fin de la prueba del panel" } });
+});
+
+test("cobro mensual: resumen por empresa, Excel como el que se envía y órdenes en PDF", async () => {
+  const ExcelJS = require("exceljs");
+  const mes = ids.hoy.slice(0, 7);
+  const mesAnterior = (await pool.query("SELECT to_char(current_date - interval '1 month', 'YYYY-MM') AS m")).rows[0].m;
+  assert.strictEqual((await api("GET", `/api/cobro?mes=${mes}`, { token: tokens.op1 })).status, 403);
+
+  // Solo aprobados (por defecto) vs. incluyendo los sin aprobar
+  const soloAprobados = (await api("GET", `/api/cobro?mes=${mes}`, { token: tokens.fin })).datos.empresas;
+  const todos = (await api("GET", `/api/cobro?mes=${mes}&incluir_sin_aprobar=true`, { token: tokens.fin })).datos.empresas;
+  const contar = (lista) => lista.reduce((t, e) => t + e.cantidad, 0);
+  assert.ok(contar(todos) > contar(soloAprobados));
+  const bogota = soloAprobados.find((e) => e.cliente === "BOGOTA MOVIL");
+  assert.ok(bogota && bogota.sin_aprobar === 0);
+  assert.strictEqual(bogota.iva, Math.round(bogota.subtotal * 0.19 * 100) / 100);
+
+  // Excel: RESUMEN + una hoja por empresa, con las columnas del formato
+  const bajar = async (ruta) => {
+    const r = await fetch(`${base}${ruta}`, { headers: { Authorization: `Bearer ${tokens.admin}` } });
+    assert.strictEqual(r.status, 200, ruta);
+    return { r, buffer: Buffer.from(await r.arrayBuffer()) };
+  };
+  let { r, buffer } = await bajar(`/api/exportar/cobro?mes=${mes}`);
+  assert.match(r.headers.get("content-disposition"), /Servicios de gruas cobro\.xlsx/);
+  let libro = new ExcelJS.Workbook();
+  await libro.xlsx.load(buffer);
+  assert.strictEqual(libro.worksheets[0].name, "RESUMEN");
+  assert.strictEqual(libro.worksheets.length, soloAprobados.length + 1);
+  const hoja = libro.getWorksheet("BOGOTA MOVIL");
+  assert.match(hoja.getCell("A1").value, /^SERVICIO DE GRÚA PRESTADOS A BOGOTA MOVIL$/);
+  const encabezados = hoja.getRow(2).values.filter(Boolean);
+  for (const t of ["Placa Grua", "No. Orden de servicio", "Tarifa", "Cardan/Eje/Tubo de Admisión", "persiana", "camaras", "Recargo Nocturno", "M.Rescate", "Tal.Tarifa a cobrar", "Observaciones"]) {
+    assert.ok(encabezados.includes(t), `falta la columna ${t}`);
+  }
+  const colTotal = encabezados.indexOf("Tal.Tarifa a cobrar") + 1;
+  const filaSub = 3 + bogota.cantidad;
+  assert.strictEqual(hoja.getCell(filaSub, colTotal - 1).value, "Sub Total");
+  assert.strictEqual(hoja.getCell(filaSub, colTotal).value.result, bogota.subtotal);
+  assert.strictEqual(hoja.getCell(filaSub + 2, colTotal).value.result, bogota.total);
+  // El aprobado con descuento queda anotado
+  assert.ok(Array.from({ length: bogota.cantidad }, (_, k) => String(hoja.getCell(3 + k, encabezados.length).value)).some((o) => o.includes("ajuste")));
+
+  // Suma (mes anterior): columna KM y resumen por grúa
+  const suma = await idDe("SELECT id FROM clientes WHERE nit = $1", "900364615");
+  ({ buffer } = await bajar(`/api/exportar/cobro?mes=${mesAnterior}&cliente_id=${suma}&incluir_sin_aprobar=true`));
+  libro = new ExcelJS.Workbook();
+  await libro.xlsx.load(buffer);
+  const hs = libro.getWorksheet("SUMA");
+  assert.ok(hs.getRow(2).values.includes("KM"));
+  let hayResumenGruas = false;
+  hs.eachRow((row) => row.eachCell((c) => (hayResumenGruas ||= c.value === "Total general")));
+  assert.ok(hayResumenGruas);
+
+  // Órdenes de servicio en PDF del mismo cobro
+  ({ r, buffer } = await bajar(`/api/exportar/cobro-ordenes?mes=${mes}&cliente_id=${bogota.cliente_id}`));
+  assert.match(r.headers.get("content-type"), /application\/pdf/);
+  assert.strictEqual(Number(buffer.toString("latin1").match(/\/Type \/Pages[\s\S]*?\/Count (\d+)/)?.[1]), bogota.cantidad);
 });
 
 test("cada operación importante quedó en la bitácora", async () => {

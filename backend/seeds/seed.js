@@ -366,11 +366,17 @@ async function crearTarifas(client) {
         precios += await crearPrecio(client, { conceptoId: conceptos[clave], clienteId, valor }, `${quien} · ${clave}`);
       }
 
-      // Hora de corte del recargo nocturno (solo si el cliente no tiene una ya)
-      if (clienteId && plan.recargoNocturnoDesde) {
+      // Horario del recargo nocturno: va en el PRECIO del recargo (Tarifas → Precios de
+      // conceptos). General 20:40 a 06:00; un cliente puede tener su hora (La Rolita 19:00).
+      // Solo se llena si está vacío (no cambia lo que el administrador haya puesto).
+      const desde = clienteId ? plan.recargoNocturnoDesde : "20:40";
+      const hasta = clienteId ? null : "06:00";
+      if (desde) {
         await client.query(
-          "UPDATE clientes SET recargo_nocturno_desde = $2 WHERE id = $1 AND recargo_nocturno_desde IS NULL",
-          [clienteId, plan.recargoNocturnoDesde],
+          `UPDATE precios_concepto
+           SET recargo_desde = COALESCE(recargo_desde, $3::time), recargo_hasta = COALESCE(recargo_hasta, $4::time)
+           WHERE concepto_id = $1 AND cliente_id IS NOT DISTINCT FROM $2 AND vigente_desde = $5`,
+          [conceptos.recargo, clienteId, desde, hasta, VIGENCIA_2026.desde],
         );
       }
     }

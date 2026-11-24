@@ -53,7 +53,7 @@ function validarReglaPago(fila) {
   }
 }
 
-function crearServicioVersionado({ modelo, entidad, nombre, validar = () => {} }) {
+function crearServicioVersionado({ modelo, entidad, nombre, validar = () => {}, editablesEnUso = [] }) {
   return {
     listar: (opciones) => listarConVigencia(modelo, opciones),
 
@@ -65,8 +65,8 @@ function crearServicioVersionado({ modelo, entidad, nombre, validar = () => {} }
 
     async crear({ datos, usuarioId }) {
       validarCoherencia({ km_desde: 0, ...datos });
-      validar(datos);
       return withTransaction(async (client) => {
+        await validar(datos, client);
         const creada = await modelo.crear(client, datos);
         await BitacoraModel.registrar(client, {
           usuarioId,
@@ -85,7 +85,8 @@ function crearServicioVersionado({ modelo, entidad, nombre, validar = () => {} }
         if (!actual) throw errorNegocio(404, "NO_ENCONTRADO", `La ${nombre} no existe`);
 
         if (actual.usada) {
-          const otros = Object.keys(cambios).filter((c) => c !== "vigente_hasta");
+          // En uso solo se cierra la vigencia (y lo que el recurso permita, ej. el horario del recargo)
+          const otros = Object.keys(cambios).filter((c) => c !== "vigente_hasta" && !editablesEnUso.includes(c));
           if (otros.length > 0) {
             throw errorNegocio(
               409,
@@ -94,7 +95,7 @@ function crearServicioVersionado({ modelo, entidad, nombre, validar = () => {} }
               { campos_no_permitidos: otros },
             );
           }
-          if (cambios.vigente_hasta === null) {
+          if (cambios.vigente_hasta === undefined || cambios.vigente_hasta === null) {
             // reabrir sin fin está permitido
           } else if (actual.ultima_fecha_uso && cambios.vigente_hasta < actual.ultima_fecha_uso) {
             throw errorNegocio(
@@ -105,7 +106,7 @@ function crearServicioVersionado({ modelo, entidad, nombre, validar = () => {} }
           }
         }
         validarCoherencia({ ...actual, ...cambios });
-        validar({ ...actual, ...cambios });
+        await validar({ ...actual, ...cambios }, client);
 
         const actualizada = await modelo.actualizar(client, id, cambios);
         const dif = diferencias(actual, actualizada, { ignorar: IGNORAR });
@@ -146,7 +147,28 @@ function crearServicioVersionado({ modelo, entidad, nombre, validar = () => {} }
 }
 
 const TarifaAdminService = crearServicioVersionado({ modelo: TarifaAdminModel, entidad: "tarifas", nombre: "tarifa" });
-const PrecioConceptoService = crearServicioVersionado({ modelo: PrecioConceptoModel, entidad: "precios_concepto", nombre: "tarifa de concepto" });
+/**
+ * Precios de conceptos. El horario del recargo nocturno (recargo_desde /
+ * recargo_hasta) solo va en el precio del concepto "Recargo nocturno" y se
+ * puede cambiar aunque el precio ya se haya usado (no cambia lo cobrado: aplica
+ * a los servicios que se calculen o corrijan después).
+ */
+async function validarPrecio(fila, client) {
+  const conHorario = ["recargo_desde", "recargo_hasta"].some((c) => fila[c] !== undefined && fila[c] !== null);
+  if (!conHorario) return;
+  const { rows } = await client.query("SELECT es_recargo_nocturno FROM conceptos_tarifa WHERE id = $1", [fila.concepto_id]);
+  if (!rows[0]?.es_recargo_nocturno) {
+    throw errorNegocio(422, "SOLO_RECARGO", "El horario solo se pone en el precio del concepto Recargo nocturno");
+  }
+}
+
+const PrecioConceptoService = crearServicioVersionado({
+  modelo: PrecioConceptoModel,
+  entidad: "precios_concepto",
+  nombre: "tarifa de concepto",
+  validar: validarPrecio,
+  editablesEnUso: ["recargo_desde", "recargo_hasta"],
+});
 
 const ReglaPagoService = crearServicioVersionado({
   modelo: ReglaPagoModel,

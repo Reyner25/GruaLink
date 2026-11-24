@@ -274,6 +274,31 @@ router.get("/pago-operadores", requierePermiso("valores:ver"), ...filtrosLiquida
   }
 });
 
+// ---------- Cobro mensual a las empresas (Reportes → Cobro) ----------
+const Cobro = require("../services/cobro.service");
+const cobroRutas = require("./cobro.routes");
+
+router.get("/cobro", requierePermiso("valores:ver"), ...cobroRutas.filtrosCobro, async (req, res, next) => {
+  try {
+    const { buffer, nombre } = await Cobro.excel(cobroRutas.leerFiltros(req.query));
+    enviarExcel(res, buffer, nombre.replace(/[^\w .()-]/g, ""));
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Órdenes de servicio (PDF) de los mismos servicios del cobro
+router.get("/cobro-ordenes", requierePermiso("valores:ver"), ...cobroRutas.filtrosCobro, async (req, res, next) => {
+  try {
+    const filtros = cobroRutas.leerFiltros(req.query);
+    const ids = (await Cobro.datos(filtros)).flatMap((e) => e.servicios.map((s) => s.id));
+    if (!ids.length) throw errorNegocio(404, "SIN_SERVICIOS", "No hay servicios para cobrar en ese mes");
+    await enviarOrdenes(req, res, { servicioIds: ids }, `Ordenes ${filtros.mes.replace("-", "")}.pdf`);
+  } catch (err) {
+    next(err);
+  }
+});
+
 // ---------- Tarifas (administrador y financiero) ----------
 const { TarifaAdminModel, PrecioConceptoModel, ReglaPagoModel, listarConVigencia } = require("../models/tarifaAdmin.model");
 const { pool } = require("../config/db");

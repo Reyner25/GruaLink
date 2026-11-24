@@ -31,6 +31,7 @@ Archivo revisado: `REGISTRO TOTAL SERVICIOS DE GRUAS VIGENTE.xlsx` (7.745 servic
 | `006_numeracion_orden_desde_1.sql` | Corrige la 004: la numeración digital arranca en **1** (antes 10000, que chocaba con talonarios en papel ya usados) |
 | `007_vehiculo_otro_y_rescate.sql` | Tipo de vehículo "Otro" (con descripción), rescate según el tipo de servicio, conceptos que solo registra el administrador |
 | `008_bitacora_reabrir.sql` | Nueva operación de bitácora `reabrir` (servicio aprobado que vuelve a revisión). No cambia datos |
+| `014_horario_recargo_en_precios.sql` | El horario del recargo nocturno pasa a `precios_concepto.recargo_desde / recargo_hasta` (Tarifas → Precios de conceptos); se copian la hora general y la de cada cliente. `clientes.recargo_nocturno_desde` y las horas del concepto quedan solo como respaldo |
 | `013_bolsa_columna_provisional.sql` | `clientes.bolsa_km_provisional`: columna provisional de la bolsa de km (mes abierto), elegida en Tarifas → Bolsa de km |
 | `012_ajustes_manuales_y_horario_recargo.sql` | Horario general del recargo nocturno en el concepto (`recargo_desde`, `recargo_hasta`) y en servicios `tarifa_basica_manual` y `recargo_nocturno` (auto · si · no) |
 | `011_pago_operador.sql` | Tabla `reglas_pago_operador` (sin superposición por cliente, parte y vigencia) y en servicios `valor_operador` y `pago_operador_detalle` (se guardan al aprobar) |

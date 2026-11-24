@@ -23,6 +23,7 @@ import PromedioGruas from "./pages/admin/PromedioGruas";
 import BolsaKm from "./pages/admin/BolsaKm";
 import Turnos from "./pages/admin/Turnos";
 import PagoOperadores from "./pages/admin/PagoOperadores";
+import Cobro from "./pages/admin/Cobro";
 import Bitacora from "./pages/admin/Bitacora";
 import Clientes from "./pages/admin/Clientes";
 import Gruas from "./pages/admin/Gruas";
@@ -89,6 +90,7 @@ export default function App() {
         <Route path="reportes/promedio-gruas" element={<PromedioGruas />} />
         <Route path="reportes/bolsa-km" element={<BolsaKm />} />
         <Route path="reportes/pago-operadores" element={<PagoOperadores />} />
+        <Route path="reportes/cobro" element={<Cobro />} />
         <Route path="tarifas" element={<Tarifas />} />
         <Route path="clientes" element={<Clientes />} />
         <Route path="gruas" element={<Gruas />} />

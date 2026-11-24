@@ -110,15 +110,19 @@ const TarifaModel = {
    * recargo (si existe y está activo) y la hora de corte propia del cliente
    * (NULL = usar la general).
    */
-  async reglaRecargoNocturno(clienteId, { client = pool } = {}) {
+  // Horario: el del PRECIO del recargo vigente en la fecha (Tarifas → Precios de
+  // conceptos): primero el del cliente, si no el general, si no el del concepto.
+  async reglaRecargoNocturno(clienteId, fecha, { client = pool } = {}) {
+    const vigente = `p.concepto_id = ct.id AND p.vigente_desde <= $2::date AND (p.vigente_hasta IS NULL OR p.vigente_hasta >= $2::date)`;
     const { rows } = await client.query(
       `SELECT ct.id AS concepto_id,
-              to_char(ct.recargo_desde, 'HH24:MI') AS desde_general,
-              to_char(ct.recargo_hasta, 'HH24:MI') AS hasta,
-              (SELECT to_char(recargo_nocturno_desde, 'HH24:MI') FROM clientes WHERE id = $1) AS desde
+              to_char(COALESCE(propio.recargo_desde, general.recargo_desde, ct.recargo_desde), 'HH24:MI') AS desde,
+              to_char(COALESCE(propio.recargo_hasta, general.recargo_hasta, ct.recargo_hasta), 'HH24:MI') AS hasta
        FROM (SELECT 1) AS uno
-       LEFT JOIN conceptos_tarifa ct ON ct.es_recargo_nocturno AND ct.activo`,
-      [clienteId],
+       LEFT JOIN conceptos_tarifa ct ON ct.es_recargo_nocturno AND ct.activo
+       LEFT JOIN LATERAL (SELECT p.recargo_desde, p.recargo_hasta FROM precios_concepto p WHERE ${vigente} AND p.cliente_id = $1 LIMIT 1) propio ON TRUE
+       LEFT JOIN LATERAL (SELECT p.recargo_desde, p.recargo_hasta FROM precios_concepto p WHERE ${vigente} AND p.cliente_id IS NULL LIMIT 1) general ON TRUE`,
+      [clienteId, fecha || new Date().toISOString().slice(0, 10)],
     );
     return rows[0];
   },

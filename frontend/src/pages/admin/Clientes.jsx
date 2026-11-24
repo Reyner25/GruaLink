@@ -29,7 +29,6 @@ export default function Clientes() {
           { campo: "telefono", titulo: "Teléfono" },
           { campo: "email", titulo: "Correo" },
           { campo: "modalidad_cobro", titulo: "Cobro", render: (f) => (f.modalidad_cobro === "bolsa_km_mensual" ? <Chip size="small" label="Bolsa de km" color="secondary" /> : "Por servicio") },
-          { campo: "recargo_nocturno_desde", titulo: "Recargo nocturno", render: (f) => (f.recargo_nocturno_desde ? `desde ${f.recargo_nocturno_desde.slice(0, 5)}` : "20:40 (general)") },
           { campo: "activo", titulo: "Estado", render: activo },
         ]}
         campos={[
@@ -50,13 +49,6 @@ export default function Clientes() {
               { valor: "bolsa_km_mensual", texto: "Bolsa de km mensual (como Suma)" },
             ],
             ayuda: "Bolsa de km: el valor depende de los km de todos sus servicios del mes (tabla propia, ver Reportes → Bolsa de km)",
-          },
-          {
-            campo: "recargo_nocturno_desde",
-            etiqueta: "Recargo nocturno desde",
-            tipo: "hora",
-            nulable: true,
-            ayuda: "Si el servicio termina después de esta hora (y antes de las 6:00 a. m.) se cobra el recargo nocturno. Vacío = 20:40 (general)",
           },
           { campo: "activo", etiqueta: "Activo (aparece en el celular)", tipo: "booleano" },
         ]}
