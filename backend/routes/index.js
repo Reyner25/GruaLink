@@ -31,13 +31,13 @@ router.use("/usuarios", usuarioRoutes);
 router.use("/tarifas", tarifaRoutes.tarifas);
 router.use("/precios-concepto", tarifaRoutes.preciosConcepto);
 router.use("/pago-operador", tarifaRoutes.reglasPagoOperador); // reglas de pago al operador
-router.use("/liquidacion-operadores", require("./liquidacion.routes")); // cuánto se le paga a cada operador
-router.use("/cobro", require("./cobro.routes")); // cobro mensual a las empresas
+router.use("/liquidacion-operadores", reportes.liquidacion); // cuánto se le paga a cada operador
+router.use("/cobro", reportes.cobro); // cobro mensual a las empresas
 
 // Reportes y auditoría
 router.use("/dashboard", reportes.dashboard);
 router.use("/bitacora", reportes.bitacora);
-router.use("/exportar", exportarRoutes); // descargas en Excel
+router.use("/exportar", exportarRoutes); // descargas en Excel y PDF
 router.use("/bolsa-km", require("./bolsaKm.routes")); // bolsa de kilometraje mensual (Suma)
 
 module.exports = router;

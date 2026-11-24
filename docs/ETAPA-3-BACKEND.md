@@ -53,6 +53,8 @@ Ahora devuelve también `tipos_servicio` y `conceptos` (sin precios), y el NIT y
 
 ## 3. Reglas de negocio implementadas
 
+> Desde el 24/11/2026, `services/servicio.service.js` es solo la puerta de entrada. El código está dividido en `services/servicio/`: `operador.js` (crear, finalizar), `revision.js` (estado, aprobar, corregir), `reglas.js` (validaciones y `TRANSICIONES`) y `valores.js` (cálculo en $). Ver [ESTRUCTURA.md](ESTRUCTURA.md).
+
 | Regla | Dónde |
 |---|---|
 | El operador, la grúa, el turno, el número de orden, el estado y los valores en $ los pone **el servidor**. Si el celular los envía, se descartan (lista blanca) | `validators/comun.js`, `services/servicio.service.js` |
@@ -123,7 +125,7 @@ El formulario actual (`frontend/src/pages/OrdenServicioPage.jsx`) **ya no funcio
 | Archivo | Qué hace | Cuándo usarlo |
 |---|---|---|
 | `models/crud.model.js` | `crearModeloCrud({tabla, columnas, select, orden})` → listar / obtenerPorId / crear / actualizar con SQL parametrizado y lista blanca de columnas | Cualquier tabla nueva sencilla |
-| `services/catalogoAdmin.service.js` | `crearServicioCatalogo({modelo, entidad})` → igual, pero en transacción y **con bitácora automática** (solo los campos que cambiaron) | Junto con el anterior |
+| `services/crudConBitacora.service.js` | `crearServicioCatalogo({modelo, entidad})` → igual, pero en transacción y **con bitácora automática** (solo los campos que cambiaron) | Junto con el anterior |
 | `controllers/catalogoAdmin.controller.js` | `crearControladorCatalogo(servicio, {clave, …})` → los 4 manejadores HTTP | Junto con los anteriores |
 | `validators/comun.js` | `texto`, `textoNulable`, `booleano`, `entero`, `dinero`, `fecha`, `motivo`, `alMenosUnCampo` | En cualquier validador |
 | `utils/diferencias.js` | Compara antes/después para la bitácora | Correcciones, ediciones |

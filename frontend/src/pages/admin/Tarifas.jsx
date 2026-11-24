@@ -24,7 +24,7 @@ import { puede } from "../../utils/roles";
 import { EncabezadoPagina } from "../../components/admin/Comunes";
 import CrudCatalogo from "../../components/admin/CrudCatalogo";
 import BotonExportar from "../../components/admin/BotonExportar";
-import BolsaKmTabla from "../../components/admin/BolsaKmTabla";
+import BolsaKmTabla from "../../components/admin/bolsaKm/BolsaKmTabla";
 import { Cargando, ErrorCarga } from "../../components/operador/Comunes";
 
 const GENERALES = "Clientes generales";

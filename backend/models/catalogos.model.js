@@ -69,6 +69,11 @@ const CatalogosModel = {
     );
     return rows[0] || null;
   },
+
+  async gruaExiste(id, { client = pool } = {}) {
+    const { rows } = await client.query("SELECT 1 FROM gruas WHERE id = $1", [id]);
+    return Boolean(rows[0]);
+  },
 };
 
 module.exports = CatalogosModel;

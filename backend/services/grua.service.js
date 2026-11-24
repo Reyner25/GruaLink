@@ -13,7 +13,7 @@
 const { withTransaction } = require("../config/db");
 const GruaModel = require("../models/grua.model");
 const BitacoraModel = require("../models/bitacora.model");
-const { crearServicioCatalogo } = require("./catalogoAdmin.service");
+const { crearServicioCatalogo } = require("./crudConBitacora.service");
 const { errorNegocio } = require("../utils/errores");
 
 const base = crearServicioCatalogo({ modelo: GruaModel, entidad: "gruas", nombre: "grúa" });

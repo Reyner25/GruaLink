@@ -69,6 +69,9 @@ export const ESTADOS_SERVICIO = {
 
 export const ESTADOS_ABIERTOS = ["solicitado", "asignado", "en_desplazamiento", "en_servicio"];
 
+// El servicio aún no tiene kilómetros (los carga el administrador al revisar)
+export const sinKilometros = (s) => Number(s.km_servicio) === 0 && Number(s.km_vacio) === 0;
+
 export const ESTADOS_TURNO = {
   activo: { texto: "En curso", color: "success" },
   finalizado: { texto: "Finalizado", color: "default" },

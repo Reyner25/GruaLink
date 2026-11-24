@@ -31,16 +31,8 @@ const M = 36; // margen
 const ANCHO = 612 - 2 * M;
 const Y_FIRMAS = ALTO_PAGINA - M - 78; // las firmas van siempre abajo
 
-const ESTADOS = {
-  solicitado: "Solicitado",
-  asignado: "Asignado",
-  en_desplazamiento: "En desplazamiento",
-  en_servicio: "En servicio",
-  finalizado: "Finalizado",
-  en_revision: "En revisión",
-  aprobado: "Aprobado",
-  anulado: "Anulado",
-};
+const { ESTADOS_SERVICIO: ESTADOS } = require("../utils/textos");
+// Unidades abreviadas para la orden (en el Excel van completas: utils/textos.js)
 const UNIDADES = { evento: "evento", hora: "h", km: "km", cantidad: "und." };
 
 // ---------- Formatos ----------

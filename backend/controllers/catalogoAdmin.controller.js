@@ -10,7 +10,7 @@
  *   filtrosQuery    { parametro: columna } filtros permitidos por query
  *   camposBusqueda  columnas donde busca ?buscar=
  *   presentar       función para quitar campos antes de responder
- *   validarCambio   reglas propias al actualizar (ver catalogoAdmin.service)
+ *   validarCambio   reglas propias al actualizar (ver crudConBitacora.service)
  */
 function crearControladorCatalogo(servicio, opciones) {
   const {

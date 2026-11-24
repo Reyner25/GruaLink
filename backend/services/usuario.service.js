@@ -17,7 +17,7 @@ const { withTransaction } = require("../config/db");
 const UsuarioModel = require("../models/usuario.model");
 const TurnoModel = require("../models/turno.model");
 const BitacoraModel = require("../models/bitacora.model");
-const { crearServicioCatalogo } = require("./catalogoAdmin.service");
+const { crearServicioCatalogo } = require("./crudConBitacora.service");
 const { errorNegocio } = require("../utils/errores");
 
 const RONDAS_BCRYPT = 10;

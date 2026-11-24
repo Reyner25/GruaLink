@@ -1,7 +1,7 @@
 /**
  * Servicios de los catálogos administrables + sus reglas propias.
  */
-const { crearServicioCatalogo } = require("./catalogoAdmin.service");
+const { crearServicioCatalogo } = require("./crudConBitacora.service");
 const M = require("../models/catalogosAdmin.model");
 const { errorNegocio } = require("../utils/errores");
 

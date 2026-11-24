@@ -37,11 +37,16 @@ frontend/src/
 ├── layouts/AdminLayout.jsx         menú lateral (MENU: agregar opciones aquí)
 ├── api/admin.api.js                llamadas del panel (incluye listar/crear/actualizar genéricos)
 ├── hooks/useFiltrosUrl.js          filtros guardados en la URL
+├── hooks/useEnviar.js              "enviando / error" de los botones Guardar de los diálogos
 ├── components/admin/
 │   ├── Comunes.jsx                 EncabezadoPagina, Indicador, Panel
 │   ├── Filtros.jsx                 barra de filtros (fecha, cliente, grúa, operador, estado)
 │   ├── GraficoBarras.jsx           gráfico de barras sin librerías externas
-│   ├── DialogosServicio.jsx        Corregir · Aprobar · Anular/Devolver
+│   ├── servicio/                   piezas del detalle de un servicio:
+│   │                               AccionesServicio (botones + diálogos), DialogoCorregir
+│   │                               (+ formularioCorreccion.js), DialogoAprobar, DialogoMotivo,
+│   │                               DatosServicio, ValoresServicio, PagoOperadorPanel, BitacoraServicio
+│   ├── bolsaKm/                    Tarifas → Bolsa de kilómetros (tabla, celdas, vigencias)
 │   └── CrudCatalogo.jsx            ★ tabla administrable reutilizable
 └── pages/admin/                    Dashboard, Servicios, ServicioDetalle, Tarifas,
                                     Clientes, Gruas, Catalogos, Usuarios,
@@ -73,7 +78,7 @@ Cada pantalla solo **describe** el recurso; el componente lista, busca, crea, ed
 
 ## 4. Cambio de regla en el backend
 
-- **Anular después de finalizar**: ahora un servicio *finalizado* o *en revisión* también se puede anular (con motivo). Caso real del Excel: "ANULADA, SE CAMBIA POR OS …". Se revierte en `TRANSICIONES` de `backend/services/servicio.service.js`.
+- **Anular después de finalizar**: ahora un servicio *finalizado* o *en revisión* también se puede anular (con motivo). Caso real del Excel: "ANULADA, SE CAMBIA POR OS …". Se revierte en `TRANSICIONES` de `backend/services/servicio/reglas.js`.
 - **Servicios aprobados (23/11/2026)**: el administrador puede, siempre con **motivo obligatorio**:
   - **Reabrir** → vuelve a *En revisión*; se quitan valor aprobado, quién y cuándo (dejan de sumar como aprobado). Luego se corrige y se aprueba de nuevo. La bitácora guarda la aprobación anterior (operación `reabrir`).
   - **Anular** → queda *Anulado* y deja de sumar; se conservan los datos de la aprobación como historia.
@@ -173,7 +178,7 @@ Características del archivo:
 - Fila **TOTAL** con `SUBTOTAL(9, …)`: suma solo las filas visibles cuando se filtra en Excel.
 - Permisos: administrador y financiero (`reportes:ver`). El operador recibe 403.
 
-Código: `backend/services/excel.service.js` (genérico: `crearExcel({ titulo, hojas })` sirve para cualquier reporte nuevo), `backend/models/exportar.model.js`, `backend/routes/exportar.routes.js`, `frontend/src/components/admin/BotonExportar.jsx`.
+Código: `backend/services/excel.service.js` (genérico: `crearExcel({ titulo, hojas })` sirve para cualquier reporte nuevo), `backend/models/exportar.model.js`, `backend/services/exportar.service.js` (qué columnas lleva cada archivo), `backend/routes/exportar.routes.js`, `frontend/src/components/admin/BotonExportar.jsx`.
 
 Librería nueva: **ExcelJS 4.4.0** (MIT). `npm audit` reporta 2 avisos moderados en `uuid` (dependencia interna de ExcelJS para identificadores del archivo; no recibe datos del usuario) y 2 en `nodemon` (solo desarrollo). Revisar en la Etapa 7.
 
@@ -189,7 +194,7 @@ Cada orden (tamaño carta): encabezado con N.º de orden, fecha y estado; datos 
 
 - El dinero solo aparece si el usuario tiene `valores:ver` (hoy: administrador y financiero).
 - Permisos: `reportes:ver`. El operador recibe 403.
-- Código: `backend/services/pdf.service.js` (diseño de la orden), rutas en `backend/routes/exportar.routes.js`. Librería **PDFKit 0.20.2** (MIT), con las fuentes estándar del PDF (no requiere instalar fuentes).
+- Código: `backend/services/pdf.service.js` (diseño de la orden), qué servicios van en `backend/services/exportar.service.js`, rutas en `backend/routes/exportar.routes.js`. Librería **PDFKit 0.20.2** (MIT), con las fuentes estándar del PDF (no requiere instalar fuentes).
 
 ## 7. Pendiente / ideas
 

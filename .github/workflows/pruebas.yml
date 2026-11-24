@@ -1,0 +1,77 @@
+# Integración continua: en cada "push" a main y en cada pull request, GitHub
+# corre las pruebas del backend (contra un PostgreSQL 18 temporal) y revisa y
+# compila el frontend. El resultado se ve en la pestaña "Actions" del
+# repositorio y como ✔ / ✖ junto a cada commit.
+#
+# La base de datos es un contenedor desechable que solo existe mientras corren
+# las pruebas: la contraseña de abajo no protege nada real.
+name: Pruebas
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# Si llega un push nuevo mientras corre el anterior, se cancela el viejo
+concurrency:
+  group: pruebas-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: Backend (API y base de datos)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      # Las pruebas usan "<base>_test" (GruaLink_test): la crea test:preparar
+      DATABASE_URL: postgres://postgres:postgres@localhost:5432/GruaLink
+      TZ: America/Bogota
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - name: Instalar dependencias
+        run: npm ci
+      - name: Preparar la base de pruebas (migraciones + datos de prueba)
+        run: npm run test:preparar
+      - name: Pruebas
+        run: npm test
+
+  frontend:
+    name: Frontend (lint y compilación)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Instalar dependencias
+        run: npm ci
+      - name: Revisar el código (ESLint)
+        run: npm run lint
+      - name: Compilar
+        run: npm run build
