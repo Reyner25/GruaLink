@@ -161,5 +161,5 @@ Cada orden (tamaño carta): encabezado con N.º de orden, fecha y estado; datos 
 ## 7. Pendiente / ideas
 
 - Reportes por operador y por cliente en pantalla propia (el backend ya tiene `/api/dashboard/por/operador` y `/por/cliente`).
-- Cierre de turnos olvidados desde el panel (el backend ya tiene `POST /api/turnos/:id/cerrar`).
+- ~~Cierre de turnos olvidados desde el panel~~: hecho en Turnos (sección 5.3).
 - ~~Pantalla de configuración (porcentaje del operador, recargo nocturno)~~: hecho en Tarifas → Pago a operadores y Clientes → Recargo nocturno desde.
