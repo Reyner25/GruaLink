@@ -39,10 +39,11 @@ async function bloquearSiAplica(client, servicioId) {
  * del cliente en el mes de "fecha", dentro de la bolsa. excluirId: el
  * servicio que se acaba de calcular. Devuelve cuántos cambiaron de valor.
  */
-async function recalcularMes(client, { clienteId, fecha, excluirId = null, usuarioId = null }) {
+async function recalcularMes(client, { clienteId, fecha, excluirId = null, usuarioId = null, forzar = false }) {
   if (!(await esBolsa(client, clienteId))) return 0;
   // Mes abierto: todos usan la columna provisional; los demás no cambian
-  if (await TarifaModel.mesAbierto(fecha, { client })) return 0;
+  // (forzar: cuando cambia la columna provisional del cliente)
+  if (!forzar && (await TarifaModel.mesAbierto(fecha, { client }))) return 0;
   await TarifaModel.bloquearBolsaMes(client, clienteId, fecha);
 
   const { rows } = await client.query(
@@ -94,7 +95,7 @@ async function recalcularMes(client, { clienteId, fecha, excluirId = null, usuar
       nuevos: { valor_calculado: valores.valor_calculado, bolsa_km_mes: valores.bolsa_km_mes, tarifa_bolsa_id: valores.tarifa_bolsa_id },
       motivo:
         valores.bolsa_km_mes === null
-          ? "Recálculo automático: mes abierto, columna provisional 1500–1800 km"
+          ? "Recálculo automático: mes abierto, columna provisional"
           : `Recálculo automático: bolsa de km del mes = ${valores.bolsa_km_mes} km`,
     });
     cambiaron++;
@@ -124,6 +125,14 @@ async function cerrarMesesPendientes() {
   return cambiaron;
 }
 
+// Texto de la columna provisional del cliente, ej. "1500–1800"
+async function etiquetaProvisional(clienteId, columnas, opciones) {
+  const km = Number((await TarifaModel.kmProvisional(clienteId, opciones)) ?? BOLSA_PROVISIONAL.km);
+  const c = columnas.find((x) => Number(x.bolsa_km_desde) <= km && (x.bolsa_km_hasta === null || Number(x.bolsa_km_hasta) >= km));
+  if (!c) return BOLSA_PROVISIONAL.columna;
+  return c.bolsa_km_hasta === null ? `${Math.floor(c.bolsa_km_desde)} o más` : `${Math.floor(c.bolsa_km_desde)}–${Number(c.bolsa_km_hasta)}`;
+}
+
 /**
  * Resumen de la bolsa de un cliente en un mes ("2026-11"): km acumulados,
  * columna aplicada, cuántos km faltan para la siguiente (más barata) y los
@@ -141,7 +150,7 @@ async function resumenMes({ clienteId, mes }, { client } = {}) {
     mes,
     // Mes abierto: los valores se calculan con la columna provisional
     provisional: await TarifaModel.mesAbierto(fecha, opciones),
-    columna_provisional: BOLSA_PROVISIONAL.columna,
+    columna_provisional: await etiquetaProvisional(clienteId, columnas, opciones),
     km_mes: kmMes,
     columna: actual ? { desde: n(actual.bolsa_km_desde), hasta: n(actual.bolsa_km_hasta) } : null,
     siguiente: siguiente ? { desde: n(siguiente.bolsa_km_desde), faltan_km: Math.round((n(siguiente.bolsa_km_desde) - kmMes) * 100) / 100 } : null,

@@ -4,7 +4,7 @@
  * Muestra, para un cliente y un mes: km acumulados, columna de la tabla que
  * se está aplicando, cuántos km faltan para la siguiente (más barata) y los
  * servicios del mes con su valor. Mientras el mes está abierto los valores
- * son PROVISIONALES (columna 1500–1800); al cerrar el mes se recalculan solos.
+ * son PROVISIONALES (columna elegida en Tarifas → Bolsa de km); al cerrar el mes se recalculan solos.
  * Ver docs/PLAN-SUMA.md.
  */
 import { useState } from "react";

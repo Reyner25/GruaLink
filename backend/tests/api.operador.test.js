@@ -707,6 +707,75 @@ test("Suma: bolsa de km mensual (columna por km del mes, fila por km del servici
   assert.ok(rows[0].n >= 2);
 });
 
+test("Tarifas → Bolsa de km: ver la tabla, corregir celdas, nueva vigencia y columna provisional", async () => {
+  const suma = await idDe("SELECT id FROM clientes WHERE nit = $1", "900364615");
+  const ver = async (extra = "") => (await api("GET", `/api/bolsa-km/tabla?cliente_id=${suma}${extra}`, { token: tokens.fin })).datos;
+
+  // La tabla como en el Excel: 6 columnas × 19 filas (el financiero puede verla)
+  let t = await ver();
+  assert.strictEqual(t.columnas.length, 6);
+  assert.strictEqual(t.filas.length, 19);
+  assert.strictEqual(t.celdas.length, 114);
+  assert.strictEqual(t.vigencia.vigente_desde, "2026-01-01");
+
+  // Una celda que ya cobró servicios no se modifica
+  const usada = t.celdas.find((c) => c.usada);
+  assert.ok(usada, "la prueba de Suma dejó celdas usadas");
+  const r1 = await api("PATCH", `/api/bolsa-km/celdas/${usada.id}`, { token: tokens.admin, body: { forma: "fijo", valor: 1, motivo: "Intento" } });
+  assert.strictEqual(r1.datos.codigo, "CELDA_EN_USO");
+  // El financiero no edita
+  assert.strictEqual((await api("PATCH", `/api/bolsa-km/celdas/${usada.id}`, { token: tokens.fin, body: { forma: "fijo", valor: 1 } })).status, 403);
+
+  // Una celda sin uso sí: 2100–2400 km del mes, 90,01–95 km del servicio
+  const libre = t.celdas.find((c) => !c.usada && c.bolsa_km_hasta === null && Number(c.km_desde) === 90.01);
+  const r2 = await api("PATCH", `/api/bolsa-km/celdas/${libre.id}`, { token: tokens.admin, body: { forma: "fijo", valor: 1300000, motivo: "Corrección del valor" } });
+  assert.strictEqual(r2.status, 200, JSON.stringify(r2.datos));
+  assert.strictEqual(r2.datos.celda.valor, 1300000);
+  const r3 = await api("PATCH", `/api/bolsa-km/celdas/${libre.id}`, { token: tokens.admin, body: { forma: "a_convenir", valor: 5 } });
+  assert.strictEqual(r3.datos.codigo, "VALOR_SOBRA");
+  await api("PATCH", `/api/bolsa-km/celdas/${libre.id}`, { token: tokens.admin, body: { forma: "fijo", valor: 1229261, motivo: "Valor original" } });
+
+  // Nueva vigencia: no puede empezar antes del último servicio cobrado con la tabla actual
+  const mesAnterior = (await pool.query("SELECT (date_trunc('month', current_date) - interval '1 month' + interval '14 days')::date::text AS d")).rows[0].d;
+  const r4 = await api("POST", "/api/bolsa-km/versiones", {
+    token: tokens.admin,
+    body: { cliente_id: suma, copiar_de: "2026-01-01", vigente_desde: mesAnterior, motivo: "Tabla nueva" },
+  });
+  assert.strictEqual(r4.datos.codigo, "CIERRE_ANTES_DE_USO");
+  const manana = (await pool.query("SELECT (current_date + 1)::text AS d")).rows[0].d;
+  const r5 = await api("POST", "/api/bolsa-km/versiones", {
+    token: tokens.admin,
+    body: { cliente_id: suma, copiar_de: "2026-01-01", vigente_desde: manana, motivo: "Tabla nueva" },
+  });
+  assert.strictEqual(r5.status, 201, JSON.stringify(r5.datos));
+  assert.strictEqual(r5.datos.celdas, 114);
+  t = await ver(`&vigente_desde=${manana}`);
+  assert.strictEqual(t.versiones.length, 2);
+  assert.ok(t.celdas.every((c) => !c.usada)); // la copia aún no se ha usado
+  // Deja la base como estaba (la prueba se repite otros días)
+  await pool.query("DELETE FROM tarifas_bolsa_km WHERE cliente_id = $1 AND vigente_desde = $2", [suma, manana]);
+  await pool.query("UPDATE tarifas_bolsa_km SET vigente_hasta = '2026-12-31' WHERE cliente_id = $1 AND vigente_desde = '2026-01-01'", [suma]);
+
+  // Columna provisional: 2000 km → columna 1800–2100; un servicio de 20 km del mes en curso vale 427.741
+  const r6 = await api("PATCH", "/api/bolsa-km/provisional", { token: tokens.admin, body: { cliente_id: suma, bolsa_km_provisional: 2000 } });
+  assert.strictEqual(r6.status, 200, JSON.stringify(r6.datos));
+  try {
+    const c = await api("POST", "/api/servicios", { token: tokens.op1, body: datosServicio({ cliente_id: suma }) });
+    await api("POST", `/api/servicios/${c.datos.servicio.id}/finalizar`, { token: tokens.op1, body: datosFinalizar() });
+    await api("POST", `/api/servicios/${c.datos.servicio.id}/corregir`, { token: tokens.admin, body: { km_servicio: 20, motivo: "Km reales" } });
+    const d = (await api("GET", `/api/servicios/${c.datos.servicio.id}`, { token: tokens.admin })).datos.servicio;
+    assert.strictEqual(d.valor_calculado, 427741);
+    const resumen = (await api("GET", `/api/bolsa-km?cliente_id=${suma}&mes=${ids.hoy.slice(0, 7)}`, { token: tokens.admin })).datos;
+    assert.strictEqual(resumen.columna_provisional, "1800–2100");
+    // Volver a 1800: el mes en curso se recalcula solo (20 km en 1500–1800 = 434.322)
+    const r7 = await api("PATCH", "/api/bolsa-km/provisional", { token: tokens.admin, body: { cliente_id: suma, bolsa_km_provisional: 1800 } });
+    assert.ok(r7.datos.recalculados >= 1);
+    assert.strictEqual((await api("GET", `/api/servicios/${c.datos.servicio.id}`, { token: tokens.admin })).datos.servicio.valor_calculado, 434322);
+  } finally {
+    await pool.query("UPDATE clientes SET bolsa_km_provisional = 1800 WHERE id = $1", [suma]);
+  }
+});
+
 test("rescate (a convenir): se marca por el tipo de servicio y queda para el administrador", async () => {
   const creado = await api("POST", "/api/servicios", {
     token: tokens.op1,

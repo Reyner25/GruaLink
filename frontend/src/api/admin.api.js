@@ -62,6 +62,27 @@ export async function bolsaKmMes(clienteId, mes) {
   return data;
 }
 
+// Administración de la tabla (Tarifas → Bolsa de km)
+export async function tablaBolsaKm(clienteId, vigenteDesde) {
+  const { data } = await api.get("/bolsa-km/tabla", { params: limpiar({ cliente_id: clienteId, vigente_desde: vigenteDesde }) });
+  return data;
+}
+
+export async function actualizarCeldaBolsa(id, datos) {
+  const { data } = await api.patch(`/bolsa-km/celdas/${id}`, datos);
+  return data.celda;
+}
+
+export async function nuevaVigenciaBolsa(datos) {
+  const { data } = await api.post("/bolsa-km/versiones", datos);
+  return data;
+}
+
+export async function cambiarProvisionalBolsa(clienteId, km) {
+  const { data } = await api.patch("/bolsa-km/provisional", { cliente_id: clienteId, bolsa_km_provisional: km });
+  return data;
+}
+
 export async function recalcularBolsaKm(clienteId, mes) {
   const { data } = await api.post("/bolsa-km/recalcular", { cliente_id: clienteId, mes });
   return data;

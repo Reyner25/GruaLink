@@ -171,6 +171,7 @@ async function calcularConceptos({ conceptos = [], clienteId, fecha, soloOperado
  * Cuando cambian los km o el estado de un servicio de un mes cerrado, los
  * demás se recalculan (bolsaKm.service.js).
  */
+// Columna provisional por defecto (si el cliente no eligió otra en Tarifas → Bolsa de km)
 const BOLSA_PROVISIONAL = { columna: "1500–1800", km: 1800 }; // km que cae en esa columna
 
 async function calcularPorBolsa({ clienteId, fecha, kmServicio, kmVacio, conceptos, soloOperador, servicioId }, opciones) {
@@ -179,7 +180,8 @@ async function calcularPorBolsa({ clienteId, fecha, kmServicio, kmVacio, concept
   const km = redondear(Number(kmServicio || 0) + Number(kmVacio || 0));
   const provisional = await TarifaModel.mesAbierto(fecha, opciones);
   const kmMes = provisional ? null : redondear((await TarifaModel.kmBolsaMes({ clienteId, fecha, excluirId: servicioId }, opciones)) + km);
-  const celda = await TarifaModel.celdaBolsa({ clienteId, fecha, kmMes: provisional ? BOLSA_PROVISIONAL.km : kmMes, km }, opciones);
+  const kmColumna = provisional ? ((await TarifaModel.kmProvisional(clienteId, opciones)) ?? BOLSA_PROVISIONAL.km) : kmMes;
+  const celda = await TarifaModel.celdaBolsa({ clienteId, fecha, kmMes: kmColumna, km }, opciones);
   if (!celda) {
     throw errorNegocio(422, "TARIFA_BOLSA_NO_ENCONTRADA", "No hay tabla de bolsa de km vigente para este cliente y fecha. Avise al administrador.");
   }

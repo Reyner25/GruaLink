@@ -24,6 +24,7 @@ import { puede } from "../../utils/roles";
 import { EncabezadoPagina } from "../../components/admin/Comunes";
 import CrudCatalogo from "../../components/admin/CrudCatalogo";
 import BotonExportar from "../../components/admin/BotonExportar";
+import BolsaKmTabla from "../../components/admin/BolsaKmTabla";
 import { Cargando, ErrorCarga } from "../../components/operador/Comunes";
 
 const GENERALES = "Clientes generales";
@@ -119,6 +120,7 @@ export default function Tarifas() {
           <Tab value="basica" label="Tarifa básica" />
           <Tab value="conceptos" label="Precios de conceptos" />
           <Tab value="operadores" label="Pago a operadores" />
+          <Tab value="bolsa" label="Bolsa de km (Suma)" />
         </Tabs>
       </Card>
 
@@ -212,6 +214,8 @@ export default function Tarifas() {
         />
         </>
       )}
+
+      {pestana === "bolsa" && <BolsaKmTabla editar={editar} />}
 
       {pestana === "operadores" && (
         <>

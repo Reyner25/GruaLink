@@ -390,7 +390,11 @@ async function crearTarifas(client) {
  */
 async function crearBolsaSuma(client) {
   const clienteId = await idPorNombre(client, "clientes", "nit", BOLSA_SUMA.nit);
-  await client.query("UPDATE clientes SET modalidad_cobro = 'bolsa_km_mensual' WHERE id = $1", [clienteId]);
+  // Columna provisional del mes abierto: 1500–1800 (se cambia en Tarifas → Bolsa de km)
+  await client.query(
+    "UPDATE clientes SET modalidad_cobro = 'bolsa_km_mensual', bolsa_km_provisional = COALESCE(bolsa_km_provisional, 1800) WHERE id = $1",
+    [clienteId],
+  );
 
   const { rows } = await client.query(
     "SELECT count(*)::int AS n FROM tarifas_bolsa_km WHERE cliente_id = $1 AND vigente_desde = $2",

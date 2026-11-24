@@ -37,6 +37,12 @@ const TarifaModel = {
     return rows[0].abierto;
   },
 
+  // Km que eligen la columna PROVISIONAL del cliente (Tarifas → Bolsa de km). NULL = por defecto
+  async kmProvisional(clienteId, { client = pool } = {}) {
+    const { rows } = await client.query("SELECT bolsa_km_provisional FROM clientes WHERE id = $1", [clienteId]);
+    return rows[0]?.bolsa_km_provisional ?? null;
+  },
+
   async modalidadCliente(clienteId, { client = pool } = {}) {
     const { rows } = await client.query("SELECT modalidad_cobro FROM clientes WHERE id = $1", [clienteId]);
     return rows[0]?.modalidad_cobro || "por_servicio";

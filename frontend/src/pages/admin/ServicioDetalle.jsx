@@ -397,7 +397,7 @@ export default function ServicioDetalle() {
                       {s.cliente_modalidad_cobro === "bolsa_km_mensual" && (
                         <Typography variant="caption" color="text.secondary" component="div">
                           {s.tarifa_bolsa_id && s.bolsa_km_mes === null
-                            ? `Bolsa de km: mes abierto → columna PROVISIONAL 1.500–1.800 km (al terminar el mes se recalcula con la columna real)${
+                            ? `Bolsa de km: mes abierto → columna PROVISIONAL ${formatoNumero(Math.floor(s.bolsa_columna_desde))}${s.bolsa_columna_hasta === null ? " km o más" : `–${formatoNumero(s.bolsa_columna_hasta)} km`} (al terminar el mes se recalcula con la columna real)${
                                 s.bolsa_forma === "por_km" ? ` · menos de 10 km: ${formatoMoneda(s.bolsa_valor)} por km` : ""
                               }`
                             : s.tarifa_bolsa_id

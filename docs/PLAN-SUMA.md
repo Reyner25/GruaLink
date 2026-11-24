@@ -10,6 +10,7 @@
 - *Reportes → Bolsa de km (Suma)*: km del mes, columna aplicada, cuántos km faltan para la siguiente, servicios del mes y botón "Recalcular mes".
 - *Detalle del servicio*: muestra la bolsa y la columna con que se calculó.
 - *Excel*: columnas "Fuera de disponibilidad" y "Bolsa km del mes".
+- **Modificar la tabla** (24/11/2026): *Tarifas → Bolsa de km (Suma)*. Muestra la tabla como en el Excel. Clic en una celda para cambiar su forma (fijo, por km, a convenir) y su valor. Las celdas que ya cobraron servicios quedan con candado. "Nueva vigencia" copia la tabla desde una fecha (ej. 2027) para cambiar valores sin tocar lo ya cobrado. Ahí mismo se elige la **columna provisional** del mes abierto; al cambiarla se recalculan los servicios no aprobados del mes en curso. Todo queda en la bitácora. Los rangos (columnas y filas) son los del Excel y no se editan desde el panel.
 
 **Reglas:**
 - Remolque y remolque parte trasera **dentro de la disponibilidad**:
@@ -18,7 +19,7 @@
   - La bolsa son los km del mes calendario: suman los no anulados y los que están dentro de la disponibilidad.
   - Los adicionales se registran **sin cobro** y no hay recargo nocturno.
 - **Fuera de la disponibilidad**, o servicio fallido: **tarifa y precios de Clientes generales**, con adicionales y recargo nocturno automático (20:40 a 6:00). Sus km no suman a la bolsa.
-- **Mes abierto** (decidido el 23/11/2026): mientras no se sabe en qué bolsa caerá el mes, los servicios se calculan con la **columna provisional 1500–1800 km** (`BOLSA_PROVISIONAL` en `tarifa.service.js`).
+- **Mes abierto** (decidido el 23/11/2026): mientras no se sabe en qué bolsa caerá el mes, los servicios se calculan con la **columna provisional** (1500–1800 km por defecto; se cambia en Tarifas → Bolsa de km).
 - **Al terminar el mes**, el mantenimiento horario (`cerrarMesesPendientes`) recalcula esos servicios con la **columna real**. Si el servidor estuvo apagado, se pone al día solo.
 - En meses cerrados, cada vez que un servicio se finaliza, se corrige, se anula o se reabre, los demás **no aprobados** se **recalculan solos**. Cada recálculo queda en la bitácora.
 - Los **aprobados conservan su valor**. Por eso conviene aprobar los servicios de Suma después del cierre del mes; si se aprueban antes, sale un aviso.
@@ -28,7 +29,7 @@
 | Tema | Se hizo así | Dónde se cambia |
 |---|---|---|
 | Km que cuentan | Servicio + vacío, para la fila y para la bolsa (como dice el Excel) | `calcularPorBolsa` en `tarifa.service.js` y `kmBolsaMes` en `tarifa.model.js` |
-| Valor con el mes abierto | **Decidido:** columna 1500–1800 km hasta el cierre del mes | `BOLSA_PROVISIONAL` |
+| Valor con el mes abierto | **Decidido:** columna provisional hasta el cierre del mes (1500–1800 por defecto) | Tarifas → Bolsa de km |
 | Bolsa < 600 o > 2.400 km | Columna más cercana (600–900 / 2100–2400) | `BOLSA_SUMA.columnas` en `seeds/seed.js` |
 | Límite de columna | El tope queda incluido: 1.800 km → 1500–1800 | Ídem |
 | Aprobar antes de fin de mes | Se permite, con aviso: el valor queda fijo | `DialogoAprobar` |
