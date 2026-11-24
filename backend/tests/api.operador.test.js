@@ -976,9 +976,49 @@ test("cobro mensual: resumen por empresa, Excel como el que se envía y órdenes
   const hoja = libro.getWorksheet("BOGOTA MOVIL");
   assert.match(hoja.getCell("A1").value, /^SERVICIO DE GRÚA PRESTADOS A BOGOTA MOVIL$/);
   const encabezados = hoja.getRow(2).values.filter(Boolean);
-  for (const t of ["Placa Grua", "No. Orden de servicio", "Tarifa", "Cardan/Eje/Tubo de Admisión", "persiana", "camaras", "Recargo Nocturno", "M.Rescate", "Tal.Tarifa a cobrar", "Observaciones"]) {
+  for (const t of [
+    "Placa Grua", "No. Orden de servicio", "Tarifa", "Cardan/Eje/Tubo de Admisión", "persiana", "camaras", "Recargo Nocturno",
+    "Hora Stand By", "Kit antiderrames", "Reiniciada", "M.Rescate", "Tal.Tarifa a cobrar", "Observaciones",
+  ]) {
     assert.ok(encabezados.includes(t), `falta la columna ${t}`);
   }
+  assert.ok(!encabezados.includes("Otros adicionales")); // todos los conceptos tienen su columna
+
+  // Stand-by, kit y reiniciada: cada uno en su columna (servicio de CAPITALBUS aprobado)
+  const kit = await idDe("SELECT id FROM conceptos_tarifa WHERE nombre = $1", "Uso de kit antiderrames");
+  const reiniciada = await idDe("SELECT id FROM conceptos_tarifa WHERE nombre = $1", "Reiniciada");
+  // El operador 1 cerró su turno en una prueba anterior: abre uno para este servicio
+  const turno = await api("POST", "/api/turnos/iniciar", { token: tokens.op1, body: { grua_id: ids.grua1 } });
+  assert.strictEqual(turno.status, 201, JSON.stringify(turno.datos));
+  const sc = await api("POST", "/api/servicios", { token: tokens.op1, body: datosServicio({ cliente_id: ids.capitalbus }) });
+  assert.strictEqual(sc.status, 201, JSON.stringify(sc.datos));
+  const idSc = sc.datos.servicio.id;
+  await api("POST", `/api/servicios/${idSc}/finalizar`, { token: tokens.op1, body: datosFinalizar() });
+  await api("POST", "/api/turnos/finalizar", { token: tokens.op1, body: { observaciones: "Fin de la prueba del cobro" } });
+  const corr = await api("POST", `/api/servicios/${idSc}/corregir`, {
+    token: tokens.admin,
+    body: {
+      motivo: "Adicionales reportados",
+      conceptos: [
+        { concepto_id: ids.standby, cantidad: 1.5 },
+        { concepto_id: kit, cantidad: 1 },
+        { concepto_id: reiniciada, cantidad: 1 },
+      ],
+    },
+  });
+  assert.strictEqual(corr.status, 200, JSON.stringify(corr.datos));
+  await api("POST", `/api/servicios/${idSc}/aprobar`, { token: tokens.admin, body: {} });
+  ({ buffer } = await bajar(`/api/exportar/cobro?mes=${mes}&cliente_id=${ids.capitalbus}`));
+  const libroCb = new ExcelJS.Workbook();
+  await libroCb.xlsx.load(buffer);
+  const hc = libroCb.getWorksheet("CAPITALBUS");
+  const encCb = hc.getRow(2).values;
+  const filaCb = [...Array(hc.rowCount).keys()].map((k) => hc.getRow(k + 1)).find((f) => String(f.getCell(2).value) === String(sc.datos.servicio.numero_orden));
+  const valor = (titulo) => filaCb.getCell(encCb.indexOf(titulo)).value;
+  assert.strictEqual(valor("Hora Stand By"), 154650); // 103.100 × 1,5 h (precio CAPITALBUS)
+  assert.strictEqual(valor("Kit antiderrames"), 110500);
+  assert.strictEqual(valor("Reiniciada"), 206000);
+  assert.strictEqual(valor("Tal.Tarifa a cobrar").result, 368000 + 154650 + 110500 + 206000);
   const colTotal = encabezados.indexOf("Tal.Tarifa a cobrar") + 1;
   const filaSub = 3 + bogota.cantidad;
   assert.strictEqual(hoja.getCell(filaSub, colTotal - 1).value, "Sub Total");

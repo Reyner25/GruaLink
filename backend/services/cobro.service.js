@@ -6,7 +6,8 @@
  *    total; fila TOTAL GENERAL. Las cifras son fórmulas a las hojas de cada empresa.
  *  - Una hoja por empresa: "SERVICIO DE GRÚA PRESTADOS A …", una fila por
  *    servicio con la tarifa y cada adicional en su columna (cardán, persiana,
- *    cámaras, recargo nocturno, rescate), total a cobrar y observaciones;
+ *    cámaras, recargo nocturno, hora stand-by, kit antiderrames, reiniciada,
+ *    rescate), total a cobrar y observaciones;
  *    al final Sub Total, IVA 19 % y Total.
  *  - Clientes por bolsa de km (Suma): columna KM (servicio + vacío) y un
  *    resumen por grúa al final.
@@ -33,7 +34,10 @@ function columnaConcepto(c) {
   if (/card[aá]n|\beje\b|tubo/.test(n)) return "cardan";
   if (/persiana/.test(n)) return "persiana";
   if (/c[aá]mara/.test(n)) return "camaras";
-  return "otros";
+  if (/stand\s*-?\s*by|disponibilidad/.test(n)) return "standby";
+  if (/kit|antiderrame/.test(n)) return "kit";
+  if (/reinicia/.test(n)) return "reiniciada";
+  return "otros"; // un concepto nuevo que no encaja en ninguna columna
 }
 
 /**
@@ -80,7 +84,7 @@ async function datos({ mes, clienteId, incluirSinAprobar = false }) {
 
   const empresas = new Map();
   for (const s of servicios) {
-    const col = { cardan: 0, persiana: 0, camaras: 0, recargo: 0, otros: 0 };
+    const col = { cardan: 0, persiana: 0, camaras: 0, recargo: 0, standby: 0, kit: 0, reiniciada: 0, otros: 0 };
     for (const c of conceptos.filter((x) => x.servicio_id === s.id)) col[columnaConcepto(c)] += Number(c.total);
     const aprobado = s.estado === "aprobado";
     const total = aprobado ? Number(s.valor_aprobado) : s.valor_calculado === null ? null : Number(s.valor_calculado);
@@ -173,8 +177,11 @@ function hojaEmpresa(libro, empresa, nombre) {
     ["persiana", "persiana", 13, "moneda", true],
     ["camaras", "camaras", 13, "moneda", true],
     ["Recargo Nocturno", "recargo", 14, "moneda", true],
+    ["Hora Stand By", "standby", 13, "moneda", true],
+    ["Kit antiderrames", "kit", 13, "moneda", true],
+    ["Reiniciada", "reiniciada", 13, "moneda", true],
     ["M.Rescate", "rescate", 14, "moneda", true],
-    ...(hayOtros ? [["Otros adicionales (stand-by, kit, reiniciada…)", "otros", 18, "moneda", true]] : []),
+    ...(hayOtros ? [["Otros adicionales", "otros", 16, "moneda", true]] : []),
     ["Tal.Tarifa a cobrar", "total", 17, "moneda"],
     ["Observaciones", "observaciones", 45],
   ];

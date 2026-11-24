@@ -113,9 +113,9 @@ Al cambiar el cliente se recalcula con su tarifa y sus precios. El motivo es obl
 - Pantalla: por empresa, servicios, subtotal, IVA 19 % y total, y TOTAL GENERAL.
 - **Cobro en Excel**: igual al archivo que se enviaba ("AAAAMM Servicios de gruas cobro"):
   - Hoja **RESUMEN**, con fórmulas a las hojas de cada empresa.
-  - **Una hoja por empresa**, con el título "SERVICIO DE GRÚA PRESTADOS A …" y estas columnas: placa de la grúa, orden, vehículo, tipo, empresa, operador, fecha, horas, origen, destino, tarifa, cardán/eje/tubo, persiana, cámaras, recargo nocturno, M. rescate, total a cobrar y observaciones. Al final van Sub Total, IVA 19 % y Total.
+  - **Una hoja por empresa**, con el título "SERVICIO DE GRÚA PRESTADOS A …" y estas columnas: placa de la grúa, orden, vehículo, tipo, empresa, operador, fecha, horas, origen, destino, tarifa, cardán/eje/tubo, persiana, cámaras, recargo nocturno, hora stand-by, kit antiderrames, reiniciada, M. rescate, total a cobrar y observaciones. Al final van Sub Total, IVA 19 % y Total.
   - **Suma**: columna **KM** y resumen por grúa.
-  - Si hay stand-by, kit o reiniciada, se agrega la columna "Otros adicionales".
+  - Si se crea un concepto nuevo que no encaja en ninguna columna, se agrega "Otros adicionales".
   - Si se aprobó un valor distinto al calculado, el total es el aprobado y la observación lo indica.
 - Por empresa: su **Excel** y sus **órdenes de servicio en PDF** (los mismos servicios del cobro).
 - API: `GET /api/cobro`, `GET /api/exportar/cobro`, `GET /api/exportar/cobro-ordenes` (mes, cliente_id, incluir_sin_aprobar). Código: `backend/services/cobro.service.js`.
