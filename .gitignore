@@ -17,3 +17,6 @@ respaldos/
 *.log
 Thumbs.db
 .DS_Store
+
+# Salida de herramientas de análisis del código (no es parte del proyecto)
+graphify-out/
