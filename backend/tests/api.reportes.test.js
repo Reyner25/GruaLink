@@ -159,7 +159,7 @@ test("cobro mensual: resumen por empresa, Excel como el que se envía y órdenes
   assert.strictEqual(valor("Hora Stand By"), 154650); // 103.100 × 1,5 h (precio CAPITALBUS)
   assert.strictEqual(valor("Kit antiderrames"), 110500);
   assert.strictEqual(valor("Reiniciada"), 206000);
-  assert.strictEqual(valor("Tal.Tarifa a cobrar").result, 368000 + 154650 + 110500 + 206000);
+  assert.strictEqual(valor("Tal.Tarifa a cobrar").result, 378000 + 154650 + 110500 + 206000);
 
   // Suma (mes anterior): columna KM y resumen por grúa
   ({ buffer } = await bajar(`/api/exportar/cobro?mes=${mesAnterior}&cliente_id=${ids.suma}&incluir_sin_aprobar=true`));

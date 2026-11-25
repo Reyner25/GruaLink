@@ -131,11 +131,11 @@ test("corrección completa: cambiar la empresa y poner una tarifa manual", async
     return (await ctx.verAdmin(id)).servicio;
   };
 
-  // Cambiar la empresa: se recalcula con la tarifa y los precios de CAPITALBUS (368.000 + cardán 88.000)
+  // Cambiar la empresa: se recalcula con la tarifa y los precios de CAPITALBUS (378.000 + cardán 88.000)
   let sv = await corregir({ cliente_id: ids.capitalbus, placa_vehiculo: "abc 123", recibe_nombre: "Supervisor", observaciones: "Era de CAPITALBUS" });
   assert.strictEqual(sv.cliente_id, ids.capitalbus);
-  assert.strictEqual(sv.valor_tarifa_basica, 368000);
-  assert.strictEqual(sv.valor_calculado, 456000);
+  assert.strictEqual(sv.valor_tarifa_basica, 378000);
+  assert.strictEqual(sv.valor_calculado, 466000);
   assert.strictEqual(sv.placa_vehiculo, "ABC123");
   assert.strictEqual(sv.recibe_nombre, "Supervisor");
 
@@ -146,7 +146,7 @@ test("corrección completa: cambiar la empresa y poner una tarifa manual", async
   assert.strictEqual(sv.valor_calculado, 588000);
   // Quitarla vuelve a la automática
   sv = await corregir({ tarifa_basica_manual: null });
-  assert.strictEqual(sv.valor_tarifa_basica, 368000);
+  assert.strictEqual(sv.valor_tarifa_basica, 378000);
   const malo = await api("POST", `/api/servicios/${id}/corregir`, { token: tokens.admin, body: { tarifa_basica_manual: -5, motivo: "Valor inválido" } });
   assert.strictEqual(malo.status, 422);
 
@@ -251,8 +251,8 @@ test("pago al operador: 8 % por parte + bono de cardán una vez; base = valor ap
   assert.strictEqual(propia.status, 201, JSON.stringify(propia.datos));
   try {
     const cb = await ctx.servicioFinalizado({ servicio: { cliente_id: ids.capitalbus }, finalizar: { conceptos: [{ concepto_id: persiana, cantidad: 1 }] } });
-    // 8 % × 368.000 (tarifa CAPITALBUS, regla general) = 29.440 + 10 % × 24.800 (regla propia) = 2.480
-    assert.strictEqual((await ctx.verAdmin(cb)).pago_operador.valor, 31920);
+    // 8 % × 378.000 (tarifa CAPITALBUS, regla general) = 30.240 + 10 % × 24.800 (regla propia) = 2.480
+    assert.strictEqual((await ctx.verAdmin(cb)).pago_operador.valor, 32720);
   } finally {
     await api("DELETE", `/api/pago-operador/${propia.datos.regla.id}`, { token: tokens.admin, body: { motivo: "Fin de la prueba" } });
   }

@@ -154,7 +154,7 @@ const PLANES_2026 = [
     nombre: "CAPITALBUS",
     nits: ["901240442"],
     servicios: {
-      Remolque: { Biarticulado: 658000, Articulado: 368000 },
+      Remolque: { Biarticulado: 658000, Articulado: 378000 }, // articulado confirmado por SOTRANDES (25/11/2026)
       "Servicio fallido": { Biarticulado: 296000, Articulado: 169800 },
     },
     conceptos: { cardan: 88000, persiana: 24800, camara: 24800, kit: 110500, recargo: 82400, standby: 103100, reiniciada: 206000 },
