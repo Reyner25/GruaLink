@@ -101,7 +101,10 @@ const BOLSA_SUMA = {
   ],
 };
 
-const VIGENCIA_2026 = { desde: "2026-01-01", hasta: "2026-12-31" };
+// Tarifas 2026. Su vigencia se extendió hasta el 28/02/2027 (25/11/2026), mientras
+// se definen las tarifas 2027. El seed no cambia lo que ya existe en una base:
+// solo aplica a bases nuevas (instalación y pruebas).
+const VIGENCIA_2026 = { desde: "2026-01-01", hasta: "2027-02-28" };
 
 // Conceptos adicionales: [clave, nombre en el sistema, unidad de cobro]
 // "Recargo nocturno" lo agrega el sistema solo (migración 009).

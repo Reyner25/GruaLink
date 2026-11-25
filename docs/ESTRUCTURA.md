@@ -102,4 +102,4 @@ Archivos de pruebas de la API, cada uno independiente:
 | `api.admin.test.js` | Catálogos, usuarios y tarifas |
 | `db.restricciones.test.js` | Reglas que protege la propia base de datos |
 
-> Las pruebas dependen de las **tarifas 2026** del seed (vigentes hasta el 31/12/2026). Antes de enero de 2027 hay que cargar las tarifas 2027 en `seeds/seed.js` (o mover las fechas de las pruebas). Si no, las pruebas empezarán a fallar el 1 de enero.
+> Las pruebas dependen de las **tarifas 2026** del seed, cuya vigencia se extendió hasta el **28/02/2027**. Antes de marzo de 2027 hay que cargar las tarifas nuevas en `seeds/seed.js` (o mover las fechas de las pruebas). Si no, las pruebas empezarán a fallar el 1 de marzo.

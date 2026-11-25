@@ -164,18 +164,18 @@ test("Tarifas → Bolsa de km: ver la tabla, corregir celdas, nueva vigencia y c
     const antesDeUso = (await pool.query("SELECT ($1::date - 1)::text AS d", [mesAnterior])).rows[0].d;
     assert.strictEqual((await editar({ vigente_desde: "2026-01-01", nuevo_hasta: antesDeUso })).datos.codigo, "CIERRE_ANTES_DE_USO");
     // No puede cruzarse con otra vigencia
-    assert.strictEqual((await editar({ vigente_desde: "2026-01-01", nuevo_hasta: "2026-12-31" })).status, 409);
+    assert.strictEqual((await editar({ vigente_desde: "2026-01-01", nuevo_hasta: "2027-02-28" })).status, 409);
     // Borrar: la que está en uso no; la copia sin uso sí
     assert.strictEqual((await borrar("2026-01-01")).datos.codigo, "VIGENCIA_EN_USO");
     assert.strictEqual((await borrar(pasado.d)).status, 204);
-    // Ya sin la copia, la original vuelve a su fin (31/12/2026)
-    e = await editar({ vigente_desde: "2026-01-01", nuevo_hasta: "2026-12-31" });
+    // Ya sin la copia, la original vuelve a su fin (28/02/2027)
+    e = await editar({ vigente_desde: "2026-01-01", nuevo_hasta: "2027-02-28" });
     assert.strictEqual(e.status, 200, JSON.stringify(e.datos));
     assert.strictEqual((await ver()).versiones.length, 1);
   } finally {
     // Deja la base como estaba aunque algo falle (la prueba se repite otros días)
     await pool.query("DELETE FROM tarifas_bolsa_km WHERE cliente_id = $1 AND vigente_desde <> '2026-01-01'", [suma]);
-    await pool.query("UPDATE tarifas_bolsa_km SET vigente_hasta = '2026-12-31' WHERE cliente_id = $1 AND vigente_desde = '2026-01-01'", [suma]);
+    await pool.query("UPDATE tarifas_bolsa_km SET vigente_hasta = '2027-02-28' WHERE cliente_id = $1 AND vigente_desde = '2026-01-01'", [suma]);
   }
 
   // Columna provisional: 2000 km → columna 1800–2100; un servicio de 20 km del mes en curso vale 427.741
