@@ -4,6 +4,25 @@
 > Se empieza con la **cuenta gratuita de Azure** y, cuando termine, se pasa a **pago por uso** sin reinstalar nada.
 > Dentro de la máquina, todo se instala con **un solo script**: [`deploy/linux/instalar.sh`](../deploy/linux/instalar.sh).
 
+## Instalación actual (25/11/2026)
+
+| Dato | Valor |
+|---|---|
+| Suscripción | "Azure subscription 1" — **prueba gratuita**, con límite de gasto activado |
+| Grupo de recursos | `rg-grualink` |
+| Máquina | `vm-grualink` · Ubuntu 24.04 · **B2ats_v2** (2 vCPU, 1 GB) · SSD Premium 64 GB · región **West US 2** |
+| Dirección | **https://grualink-sotrandes.westus2.cloudapp.azure.com** (IP fija 20.94.200.182) |
+| Acceso SSH | usuario `azureuser` con la llave `%USERPROFILE%\.ssh\grualink_azure`, solo desde la IP de la oficina |
+| Certificado HTTPS | Let's Encrypt (Caddy lo renueva solo) |
+
+Se creó con Azure CLI. En East US 2, South Central US, Central US y East US no había capacidad para los tamaños gratuitos (error `SkuNotAvailable`); West US 2 sí la tenía. Por eso, en esta guía, donde dice `eastus2` use `westus2`.
+
+Para entrar al servidor desde la oficina:
+
+```powershell
+ssh -i "$env:USERPROFILE\.ssh\grualink_azure" azureuser@grualink-sotrandes.westus2.cloudapp.azure.com
+```
+
 ## Resumen del camino
 
 | Fase | Qué incluye | Costo |
@@ -279,6 +298,7 @@ Después de pasar a pago por uso, la máquina B2ats v2 / B1s y sus discos siguen
 | El navegador dice "no seguro" o no carga | Faltan los puertos 80/443 en Azure, o el nombre aún no apunta a la máquina | Revise la regla `Permitir-Web` (paso 4.2); `journalctl -u caddy -n 50` |
 | Error 502 | GruaLink no está corriendo | `journalctl -u grualink -n 50` |
 | `instalar.sh` se detuvo con ✖ | El mensaje dice el paso | Corregir y volver a ejecutar el script (retoma donde iba) |
+| Al crear la máquina: `SkuNotAvailable` | La región no tiene capacidad para ese tamaño (pasa seguido con las pruebas gratuitas) | Probar el otro tamaño gratuito (B1s) o otra región de EE. UU. (West US 2 funcionó el 25/11/2026) |
 | GruaLink dejó de responder a fin de mes | La prueba terminó sin actualizar, o se acabó el crédito | Sección 9 |
 | Llegó un cobro inesperado | Se creó algo que no es gratis (otro tamaño, otro disco, Azure Backup…) | Portal → **Administración de costos** → **Análisis de costos**, agrupado por recurso |
 
