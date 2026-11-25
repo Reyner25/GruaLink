@@ -90,6 +90,7 @@ export default function BolsaKm() {
               {(clientes.datos || []).map((c) => (
                 <MenuItem key={c.id} value={String(c.id)}>
                   {c.nombre}
+                  {!c.por_bolsa && " (aún no se cobra por bolsa)"}
                 </MenuItem>
               ))}
             </TextField>

@@ -42,6 +42,7 @@ const clientes = routerCatalogo(
     claveUno: "cliente",
     filtrosQuery: { activo: "activo" },
     camposBusqueda: ["razon_social", "nombre_comercial", "nit"],
+    validarCambio: S.validarCambioCliente, // bolsa de km: exige tabla vigente
   }),
   reglas.cliente,
   "clientes:ver",

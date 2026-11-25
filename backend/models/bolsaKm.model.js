@@ -6,13 +6,29 @@
 const { pool } = require("../config/db");
 
 const BolsaKmModel = {
-  // Clientes que se cobran por bolsa de km
+  /**
+   * Clientes que se cobran por bolsa de km, más los que ya tienen tabla pero
+   * aún no se cobran así (se les preparó la tabla antes de cambiar la modalidad).
+   * por_bolsa: true si ya se cobran por bolsa.
+   */
   async clientes() {
     const { rows } = await pool.query(
-      `SELECT id, COALESCE(nombre_comercial, razon_social) AS nombre FROM clientes
-       WHERE modalidad_cobro = 'bolsa_km_mensual' ORDER BY 2`,
+      `SELECT c.id, COALESCE(c.nombre_comercial, c.razon_social) AS nombre, c.modalidad_cobro = 'bolsa_km_mensual' AS por_bolsa
+       FROM clientes c
+       WHERE c.modalidad_cobro = 'bolsa_km_mensual' OR EXISTS (SELECT 1 FROM tarifas_bolsa_km b WHERE b.cliente_id = c.id)
+       ORDER BY 2`,
     );
     return rows;
+  },
+
+  // ¿El cliente tiene tabla de bolsa vigente hoy?
+  async tieneTablaVigente(clienteId, { client = pool } = {}) {
+    const { rows } = await client.query(
+      `SELECT 1 FROM tarifas_bolsa_km WHERE cliente_id = $1
+         AND vigente_desde <= current_date AND (vigente_hasta IS NULL OR vigente_hasta >= current_date) LIMIT 1`,
+      [clienteId],
+    );
+    return Boolean(rows[0]);
   },
 
   // Servicios de un cliente en un mes (AAAA-MM) con los km que suman a la bolsa

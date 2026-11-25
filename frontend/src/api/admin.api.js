@@ -84,6 +84,12 @@ export async function nuevaVigenciaBolsa(datos) {
   return data;
 }
 
+// Tabla para otro cliente, copiada de una existente { cliente_id, copiar_de_cliente, copiar_de, vigente_desde, motivo }
+export async function crearTablaBolsa(datos) {
+  const { data } = await api.post("/bolsa-km/tablas", datos);
+  return data;
+}
+
 export async function editarVigenciaBolsa(datos) {
   const { data } = await api.patch("/bolsa-km/versiones", datos);
   return data;

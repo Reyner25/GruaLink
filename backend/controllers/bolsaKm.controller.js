@@ -70,6 +70,16 @@ async function nuevaVigencia(req, res, next) {
   }
 }
 
+// Tabla para otro cliente (copia de una tabla existente)
+async function crearTabla(req, res, next) {
+  try {
+    const { cliente_id: clienteId, copiar_de_cliente: copiarDeCliente, copiar_de: copiarDe, vigente_desde: vigenteDesde, motivo } = req.body;
+    res.status(201).json(await BolsaTabla.crearTabla({ clienteId, copiarDeCliente, copiarDe, vigenteDesde, motivo, usuarioId: req.usuario.id }));
+  } catch (err) {
+    next(err);
+  }
+}
+
 async function editarVigencia(req, res, next) {
   try {
     const { cliente_id: clienteId, vigente_desde: vigenteDesde, nuevo_desde: nuevoDesde, nuevo_hasta: nuevoHasta, motivo } = req.body;
@@ -97,4 +107,4 @@ async function cambiarProvisional(req, res, next) {
   }
 }
 
-module.exports = { clientes, resumenMes, recalcular, tabla, actualizarCelda, nuevaVigencia, editarVigencia, borrarVigencia, cambiarProvisional };
+module.exports = { clientes, resumenMes, recalcular, tabla, actualizarCelda, nuevaVigencia, crearTabla, editarVigencia, borrarVigencia, cambiarProvisional };

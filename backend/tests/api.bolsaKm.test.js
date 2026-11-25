@@ -194,3 +194,60 @@ test("Tarifas → Bolsa de km: ver la tabla, corregir celdas, nueva vigencia y c
     await pool.query("UPDATE clientes SET bolsa_km_provisional = 1800 WHERE id = $1", [suma]);
   }
 });
+
+test("otro cliente por bolsa de km: se le crea la tabla copiando la de Suma y ya se le puede cobrar", async () => {
+  const sufijo = String(Date.now()).slice(-7);
+  const crear = (body) => api("POST", "/api/clientes", { token: tokens.admin, body: { razon_social: `Bolsa Prueba ${sufijo} SAS`, nit: `8${sufijo}`, ...body } });
+  const cambiarModalidad = (id) => api("PATCH", `/api/clientes/${id}`, { token: tokens.admin, body: { modalidad_cobro: "bolsa_km_mensual", motivo: "Contrato por bolsa" } });
+
+  // Sin tabla no se puede cobrar por bolsa (el operador no podría finalizar sus servicios)
+  const directo = await crear({ modalidad_cobro: "bolsa_km_mensual" });
+  assert.strictEqual(directo.datos.codigo, "SIN_TABLA_BOLSA");
+  const c = await crear({});
+  assert.strictEqual(c.status, 201, JSON.stringify(c.datos));
+  const nuevo = c.datos.cliente.id;
+  try {
+    assert.strictEqual((await cambiarModalidad(nuevo)).datos.codigo, "SIN_TABLA_BOLSA");
+
+    // Tabla para otro cliente: copia de la de Suma (el financiero no puede crearla)
+    const tabla = (body, token = tokens.admin) =>
+      api("POST", "/api/bolsa-km/tablas", { token, body: { cliente_id: nuevo, copiar_de_cliente: ids.suma, copiar_de: "2026-01-01", vigente_desde: "2026-01-01", motivo: "Contrato nuevo por bolsa", ...body } });
+    assert.strictEqual((await tabla({}, tokens.fin)).status, 403);
+    assert.strictEqual((await tabla({ copiar_de_cliente: nuevo })).datos.codigo, "MISMO_CLIENTE");
+    const t = await tabla({});
+    assert.strictEqual(t.status, 201, JSON.stringify(t.datos));
+    assert.deepStrictEqual(t.datos, { cliente_id: nuevo, vigente_desde: "2026-01-01", vigente_hasta: "2027-02-28", celdas: 114 });
+    assert.strictEqual((await tabla({})).status, 409); // ya tiene tabla en esas fechas
+
+    // Ya aparece en la lista (aún no se cobra por bolsa) y su tabla se puede editar
+    let lista = (await api("GET", "/api/bolsa-km/clientes", { token: tokens.fin })).datos.clientes;
+    assert.strictEqual(lista.find((x) => x.id === nuevo)?.por_bolsa, false);
+    const propia = (await api("GET", `/api/bolsa-km/tabla?cliente_id=${nuevo}`, { token: tokens.admin })).datos;
+    assert.ok(propia.celdas.every((x) => !x.usada));
+    const celda = propia.celdas.find((x) => Number(x.bolsa_km_desde) > 1500 && Number(x.bolsa_km_desde) <= 1501 && Number(x.km_desde) > 15 && Number(x.km_desde) <= 15.01);
+    const r = await api("PATCH", `/api/bolsa-km/celdas/${celda.id}`, { token: tokens.admin, body: { forma: "fijo", valor: 400000, motivo: "Valor del contrato" } });
+    assert.strictEqual(r.status, 200, JSON.stringify(r.datos));
+
+    // Con la tabla, la modalidad sí cambia, y el operador finaliza servicios normalmente
+    assert.strictEqual((await cambiarModalidad(nuevo)).status, 200);
+    lista = (await api("GET", "/api/bolsa-km/clientes", { token: tokens.fin })).datos.clientes;
+    assert.strictEqual(lista.find((x) => x.id === nuevo)?.por_bolsa, true);
+    const id = await ctx.servicioFinalizado({ servicio: { cliente_id: nuevo }, corregir: { km_servicio: 18, km_vacio: 2 } });
+    const s = (await ctx.verAdmin(id)).servicio;
+    assert.strictEqual(s.valor_calculado, 400000); // 20 km, columna provisional 1500–1800: el valor propio del cliente
+    assert.strictEqual(s.bolsa_km_mes, null);
+    // La tabla de Suma no cambió
+    const suma = (await api("GET", `/api/bolsa-km/tabla?cliente_id=${ids.suma}`, { token: tokens.admin })).datos.celdas;
+    assert.ok(!suma.some((x) => Number(x.valor) === 400000));
+  } finally {
+    await borrarClienteDePrueba(nuevo);
+  }
+});
+
+// Deja la base de pruebas como estaba: sin el cliente, su tabla ni sus servicios
+async function borrarClienteDePrueba(clienteId) {
+  await pool.query("DELETE FROM servicio_conceptos WHERE servicio_id IN (SELECT id FROM servicios WHERE cliente_id = $1)", [clienteId]);
+  await pool.query("DELETE FROM servicios WHERE cliente_id = $1", [clienteId]);
+  await pool.query("DELETE FROM tarifas_bolsa_km WHERE cliente_id = $1", [clienteId]);
+  await pool.query("DELETE FROM clientes WHERE id = $1", [clienteId]);
+}

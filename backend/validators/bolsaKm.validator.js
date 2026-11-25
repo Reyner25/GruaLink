@@ -33,6 +33,15 @@ const validarCelda = [
 
 const validarNuevaVigencia = [clienteBody(), fecha(body("copiar_de")), fecha(body("vigente_desde")), motivoObligatorio(), resultadoValidacion];
 
+const validarCrearTabla = [
+  clienteBody(),
+  body("copiar_de_cliente").isInt({ min: 1 }).withMessage("Indique de qué cliente se copia la tabla").toInt(),
+  fecha(body("copiar_de")),
+  fecha(body("vigente_desde")),
+  motivoObligatorio(),
+  resultadoValidacion,
+];
+
 const validarEditarVigencia = [
   clienteBody(),
   fecha(body("vigente_desde")),
@@ -59,6 +68,7 @@ module.exports = {
   validarTabla,
   validarCelda,
   validarNuevaVigencia,
+  validarCrearTabla,
   validarEditarVigencia,
   validarBorrarVigencia,
   validarProvisional,

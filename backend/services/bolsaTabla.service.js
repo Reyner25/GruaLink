@@ -169,6 +169,56 @@ async function nuevaVigencia({ clienteId, copiarDe, vigenteDesde, motivo, usuari
   });
 }
 
+/**
+ * Tabla para OTRO cliente: copia una tabla existente (columnas, filas y
+ * valores) de "copiarDeCliente" al cliente nuevo, desde "vigenteDesde".
+ * Después se ajustan los valores celda por celda (la copia no tiene uso).
+ *  - Sirve para un cliente que aún no se cobra por bolsa: así puede tener su
+ *    tabla lista antes de cambiar su modalidad de cobro (Clientes).
+ *  - La fecha final es la misma de la tabla copiada (si es posterior al
+ *    inicio); si no, queda sin fin.
+ *  - No puede cruzarse con otra tabla del mismo cliente (la base lo impide → 409).
+ */
+async function crearTabla({ clienteId, copiarDeCliente, copiarDe, vigenteDesde, motivo, usuarioId }) {
+  if (clienteId === copiarDeCliente) {
+    throw errorNegocio(422, "MISMO_CLIENTE", "Para el mismo cliente use \"Nueva vigencia\"");
+  }
+  return withTransaction(async (client) => {
+    const { rows: cli } = await client.query("SELECT id, activo FROM clientes WHERE id = $1", [clienteId]);
+    if (!cli[0]) throw errorNegocio(404, "NO_ENCONTRADO", "El cliente no existe");
+    if (!cli[0].activo) throw errorNegocio(422, "CLIENTE_INACTIVO", "El cliente está inactivo");
+
+    const { rows: origen } = await client.query(
+      `SELECT bolsa_km_desde, bolsa_km_hasta, km_desde, km_hasta, forma, valor, vigente_hasta::text AS vigente_hasta
+       FROM tarifas_bolsa_km WHERE cliente_id = $1 AND vigente_desde = $2 ORDER BY bolsa_km_desde, km_desde`,
+      [copiarDeCliente, copiarDe],
+    );
+    if (!origen.length) throw errorNegocio(404, "NO_ENCONTRADO", "No existe la tabla que se quiere copiar");
+
+    const hasta = origen[0].vigente_hasta && origen[0].vigente_hasta >= vigenteDesde ? origen[0].vigente_hasta : null;
+    let primera = null;
+    for (const c of origen) {
+      const { rows } = await client.query(
+        `INSERT INTO tarifas_bolsa_km (cliente_id, bolsa_km_desde, bolsa_km_hasta, km_desde, km_hasta, forma, valor, vigente_desde, vigente_hasta)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id`,
+        [clienteId, c.bolsa_km_desde, c.bolsa_km_hasta, c.km_desde, c.km_hasta, c.forma, c.valor, vigenteDesde, hasta],
+      );
+      primera ??= rows[0].id;
+    }
+    await BitacoraModel.registrar(client, {
+      usuarioId,
+      entidad: "tarifas_bolsa_km",
+      registroId: primera,
+      operacion: "crear",
+      nuevos: { cliente_id: clienteId, vigente_desde: vigenteDesde, vigente_hasta: hasta, celdas: origen.length, copia_de_cliente: copiarDeCliente, copia_de: copiarDe },
+      motivo,
+    });
+    // Si el cliente ya se cobra por bolsa, sus servicios del mes en curso toman la tabla nueva
+    await BolsaKm.recalcularMes(client, { clienteId, fecha: vigenteDesde, usuarioId, forzar: true });
+    return { cliente_id: clienteId, vigente_desde: vigenteDesde, vigente_hasta: hasta, celdas: origen.length };
+  });
+}
+
 // Celdas de una vigencia, bloqueadas, con su uso
 async function celdasDeVigencia(client, clienteId, vigenteDesde) {
   const { rows } = await client.query(
@@ -270,4 +320,4 @@ async function cambiarProvisional({ clienteId, km, usuarioId }) {
   });
 }
 
-module.exports = { versiones, tabla, actualizarCelda, nuevaVigencia, editarVigencia, borrarVigencia, cambiarProvisional };
+module.exports = { versiones, tabla, actualizarCelda, nuevaVigencia, crearTabla, editarVigencia, borrarVigencia, cambiarProvisional };

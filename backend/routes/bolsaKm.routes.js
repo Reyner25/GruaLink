@@ -7,6 +7,8 @@
  *  GET   /tabla?cliente_id&vigente_desde   tabla de una vigencia (Tarifas → Bolsa de kilómetros)
  *  PATCH /celdas/:id {forma, valor, motivo}   corregir una celda (si no se ha usado)
  *  POST  /versiones {cliente_id, copiar_de, vigente_desde, motivo}   nueva vigencia (copia)
+ *  POST  /tablas {cliente_id, copiar_de_cliente, copiar_de, vigente_desde, motivo}
+ *        tabla para OTRO cliente, copiada de una existente (luego se ajustan las celdas)
  *  PATCH /versiones {cliente_id, vigente_desde, nuevo_desde?, nuevo_hasta?, motivo}   editar vigencia
  *  DELETE /versiones {cliente_id, vigente_desde, motivo}   borrar una tabla sin uso
  *  PATCH /provisional {cliente_id, bolsa_km_provisional}   columna provisional del mes abierto
@@ -35,6 +37,7 @@ router.post("/recalcular", requierePermiso("servicios:corregir"), ...V.validarRe
 router.get("/tabla", verTarifas, ...V.validarTabla, ctrl.tabla);
 router.patch("/celdas/:id", gestionarTarifas, ...V.validarCelda, ctrl.actualizarCelda);
 router.post("/versiones", gestionarTarifas, ...V.validarNuevaVigencia, ctrl.nuevaVigencia);
+router.post("/tablas", gestionarTarifas, ...V.validarCrearTabla, ctrl.crearTabla);
 router.patch("/versiones", gestionarTarifas, ...V.validarEditarVigencia, ctrl.editarVigencia);
 router.delete("/versiones", gestionarTarifas, ...V.validarBorrarVigencia, ctrl.borrarVigencia);
 router.patch("/provisional", gestionarTarifas, ...V.validarProvisional, ctrl.cambiarProvisional);

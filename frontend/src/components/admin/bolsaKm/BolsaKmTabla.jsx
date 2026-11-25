@@ -9,6 +9,8 @@
  *  - "Editar vigencia": cambiar las fechas (sin uso: inicio y fin, o borrar;
  *    en uso: solo la fecha final).
  *  - Columna provisional: la que se usa mientras el mes está abierto.
+ *  - "Tabla para otro cliente": copia esta tabla a un cliente nuevo por bolsa
+ *    (después se ajustan sus valores y se cambia su modalidad en Clientes).
  *
  * Piezas: CuadriculaBolsa (la tabla), DialogoCelda, DialogosVigencia, textosBolsa.
  */
@@ -17,22 +19,25 @@ import { Alert, Button, Card, CardContent, MenuItem, Snackbar, Stack, TextField,
 import LockIcon from "@mui/icons-material/Lock";
 import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 import EventIcon from "@mui/icons-material/Event";
+import PersonAddIcon from "@mui/icons-material/PersonAddAlt";
 import { useCargar } from "../../../hooks/useCargar";
 import { cambiarProvisionalBolsa, clientesConBolsa, tablaBolsaKm } from "../../../api/admin.api";
 import { mensajeError } from "../../../utils/formato";
 import { Cargando, ErrorCarga } from "../../operador/Comunes";
 import CuadriculaBolsa from "./CuadriculaBolsa";
 import DialogoCelda from "./DialogoCelda";
-import { DialogoEditarVigencia, DialogoNuevaVigencia } from "./DialogosVigencia";
+import { DialogoEditarVigencia, DialogoNuevaVigencia, DialogoTablaOtroCliente } from "./DialogosVigencia";
 import { kmDeColumna, n, textoColumna, textoVigencia } from "./textosBolsa";
 
 export default function BolsaKmTabla({ editar }) {
   const clientes = useCargar(clientesConBolsa, []);
   const [clienteElegido, setClienteElegido] = useState("");
   const [vigenciaElegida, setVigenciaElegida] = useState("");
-  const clienteId = clienteElegido || (clientes.datos?.[0] ? String(clientes.datos[0].id) : "");
+  // El elegido solo vale si sigue en la lista (al borrar su única tabla, un cliente que no es por bolsa sale de ella)
+  const enLista = clientes.datos?.some((c) => String(c.id) === clienteElegido);
+  const clienteId = (enLista && clienteElegido) || (clientes.datos?.[0] ? String(clientes.datos[0].id) : "");
   const tabla = useCargar(() => (clienteId ? tablaBolsaKm(clienteId, vigenciaElegida || undefined) : Promise.resolve(null)), [clienteId, vigenciaElegida]);
-  const [dialogo, setDialogo] = useState(null); // { tipo: "celda", celda, columna, fila } | { tipo: "nueva" } | { tipo: "editar" }
+  const [dialogo, setDialogo] = useState(null); // { tipo: "celda", celda, columna, fila } | { tipo: "nueva" } | { tipo: "editar" } | { tipo: "otroCliente" }
   const [aviso, setAviso] = useState("");
 
   if (clientes.cargando && !clientes.datos) return <Cargando />;
@@ -42,6 +47,7 @@ export default function BolsaKmTabla({ editar }) {
   }
 
   const t = tabla.datos;
+  const elegido = clientes.datos.find((c) => String(c.id) === clienteId);
   const provisional = t?.cliente.bolsa_km_provisional ?? 1800;
   const columnaProvisional = t?.columnas.find((c) => n(c.desde) <= n(provisional) && (c.hasta === null || n(c.hasta) >= n(provisional)));
 
@@ -51,6 +57,7 @@ export default function BolsaKmTabla({ editar }) {
     setAviso(mensaje);
     if (vigencia !== undefined) setVigenciaElegida(vigencia || "");
     tabla.recargar();
+    clientes.recargar(); // un cliente puede entrar o salir de la lista
   }
 
   async function guardarProvisional(valorKm) {
@@ -84,6 +91,7 @@ export default function BolsaKmTabla({ editar }) {
               {clientes.datos.map((c) => (
                 <MenuItem key={c.id} value={String(c.id)}>
                   {c.nombre}
+                  {!c.por_bolsa && " (aún no se cobra por bolsa)"}
                 </MenuItem>
               ))}
             </TextField>
@@ -122,12 +130,21 @@ export default function BolsaKmTabla({ editar }) {
                 <Button variant="outlined" startIcon={<ContentCopyIcon />} onClick={() => setDialogo({ tipo: "nueva" })}>
                   Nueva vigencia
                 </Button>
+                <Button variant="outlined" startIcon={<PersonAddIcon />} onClick={() => setDialogo({ tipo: "otroCliente" })}>
+                  Tabla para otro cliente
+                </Button>
               </Stack>
             )}
           </Stack>
         </CardContent>
       </Card>
 
+      {elegido && !elegido.por_bolsa && t?.vigencia && (
+        <Alert severity="warning" sx={{ mb: 2 }}>
+          {elegido.nombre} ya tiene tabla, pero todavía se cobra por servicio. Ajuste los valores de su tabla y luego, en <b>Clientes</b>, cambie su modalidad de
+          cobro a "Bolsa de kilómetros mensual".
+        </Alert>
+      )}
       {tabla.cargando && !t && <Cargando />}
       {tabla.error && <ErrorCarga mensaje={tabla.error} onReintentar={tabla.recargar} />}
       {t && !t.vigencia && <Alert severity="info">Este cliente aún no tiene tabla de bolsa de kilómetros.</Alert>}
@@ -152,6 +169,20 @@ export default function BolsaKmTabla({ editar }) {
       )}
       {dialogo?.tipo === "nueva" && t?.vigencia && (
         <DialogoNuevaVigencia {...propsVigencia} onListo={(desde) => terminar("Nueva vigencia creada: ya puede cambiar sus celdas", { vigencia: desde })} />
+      )}
+      {dialogo?.tipo === "otroCliente" && t?.vigencia && (
+        <DialogoTablaOtroCliente
+          origen={{ clienteId: Number(clienteId), nombre: elegido?.nombre }}
+          vigencia={t.vigencia}
+          onCerrar={() => setDialogo(null)}
+          onListo={(nuevoId) => {
+            setDialogo(null);
+            setAviso("Tabla creada: ajuste sus valores y cambie la modalidad del cliente en Clientes");
+            clientes.recargar();
+            setClienteElegido(String(nuevoId));
+            setVigenciaElegida("");
+          }}
+        />
       )}
       <Snackbar open={Boolean(aviso)} autoHideDuration={5000} onClose={() => setAviso("")} message={aviso} anchorOrigin={{ vertical: "top", horizontal: "center" }} />
     </>

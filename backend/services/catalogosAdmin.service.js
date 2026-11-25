@@ -4,6 +4,7 @@
 const { crearServicioCatalogo } = require("./crudConBitacora.service");
 const M = require("../models/catalogosAdmin.model");
 const { errorNegocio } = require("../utils/errores");
+const BolsaKmModel = require("../models/bolsaKm.model");
 
 const ClienteService = crearServicioCatalogo({ modelo: M.ClienteModel, entidad: "clientes", nombre: "cliente" });
 const TipoVehiculoService = crearServicioCatalogo({ modelo: M.TipoVehiculoModel, entidad: "tipos_vehiculo", nombre: "tipo de vehículo" });
@@ -37,7 +38,33 @@ async function validarCambioConcepto(actual, cambios, client) {
   }
 }
 
+/**
+ * Regla de clientes: para cobrar por bolsa de km mensual el cliente debe tener
+ * su tabla de bolsa vigente. Sin ella, el operador no podría finalizar sus
+ * servicios (no habría con qué calcular el valor). Primero se crea la tabla en
+ * Tarifas → Bolsa de kilómetros → "Tabla para otro cliente".
+ */
+const SIN_TABLA = "Primero cree la tabla de bolsa de km del cliente en Tarifas → Bolsa de kilómetros → \"Tabla para otro cliente\"; luego cambie la modalidad de cobro.";
+
+async function validarCambioCliente(actual, cambios, client) {
+  if (cambios.modalidad_cobro === "bolsa_km_mensual" && actual.modalidad_cobro !== "bolsa_km_mensual") {
+    if (!(await BolsaKmModel.tieneTablaVigente(actual.id, { client }))) {
+      throw errorNegocio(422, "SIN_TABLA_BOLSA", `Este cliente no tiene tabla de bolsa de km vigente. ${SIN_TABLA}`);
+    }
+  }
+}
+
+// Un cliente nuevo todavía no tiene tabla: se crea "por servicio" y se cambia después
+const crearCliente = ClienteService.crear;
+ClienteService.crear = async (opciones) => {
+  if (opciones.datos?.modalidad_cobro === "bolsa_km_mensual") {
+    throw errorNegocio(422, "SIN_TABLA_BOLSA", `Cree el cliente con modalidad "por servicio". ${SIN_TABLA}`);
+  }
+  return crearCliente(opciones);
+};
+
 module.exports = {
+  validarCambioCliente,
   ClienteService,
   TipoVehiculoService,
   TipoServicioService,

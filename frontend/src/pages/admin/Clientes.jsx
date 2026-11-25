@@ -48,7 +48,8 @@ export default function Clientes() {
               { valor: "por_servicio", texto: "Por servicio (tarifas normales)" },
               { valor: "bolsa_km_mensual", texto: "Bolsa de kilómetros mensual (ej. Suma)" },
             ],
-            ayuda: "Bolsa de kilómetros: el valor depende de los km de todos sus servicios del mes (tabla en Tarifas → Bolsa de kilómetros)",
+            ayuda:
+              "Bolsa de kilómetros: el valor depende de los km de todos sus servicios del mes. Primero cree su tabla en Tarifas → Bolsa de kilómetros → \"Tabla para otro cliente\"; un cliente nuevo se crea \"por servicio\" y se cambia después.",
           },
           { campo: "activo", etiqueta: "Activo (aparece en el celular)", tipo: "booleano" },
         ]}
