@@ -136,7 +136,15 @@ export default function DialogoCorregir({ abierto, onCerrar, onListo, servicio, 
                   slotProps={{ htmlInput: { maxLength: 10 } }}
                 />
               </Mitad>
-              <Mitad>{texto("numero_vehiculo", "Número del vehículo")}</Mitad>
+              <Mitad>
+                <TextField
+                  fullWidth
+                  label="Número del vehículo *"
+                  value={form.numero_vehiculo}
+                  onChange={(e) => cambiar("numero_vehiculo", e.target.value.toUpperCase())}
+                  slotProps={{ htmlInput: { maxLength: 20 } }}
+                />
+              </Mitad>
               <Mitad>{texto("origen", "Origen")}</Mitad>
               <Mitad>{texto("destino", "Destino")}</Mitad>
             </Grid>

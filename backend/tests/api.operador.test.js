@@ -136,6 +136,29 @@ test("datos inválidos → 422 con la lista de campos", async () => {
   assert.ok(campos.includes("placa_vehiculo") && campos.includes("cliente_id"));
 });
 
+test("número del vehículo: obligatorio, acepta letras y se guarda en mayúsculas", async () => {
+  const crear = (numero) => api("POST", "/api/servicios", { token: tokens.op1, body: datosServicio({ numero_vehiculo: numero }) });
+  for (const vacio of [undefined, null, "", "   "]) {
+    const r = await crear(vacio);
+    assert.strictEqual(r.status, 422, `debía rechazar ${JSON.stringify(vacio)}`);
+    assert.ok(r.datos.campos.some((c) => c.campo === "numero_vehiculo"));
+  }
+  assert.strictEqual((await crear("13<033>")).status, 422); // caracteres raros
+  const ok = await crear("  z-1045 ");
+  assert.strictEqual(ok.status, 201, JSON.stringify(ok.datos));
+  assert.strictEqual(ok.datos.servicio.numero_vehiculo, "Z-1045");
+  const id = ok.datos.servicio.id;
+  await api("POST", `/api/servicios/${id}/finalizar`, { token: tokens.op1, body: datosFinalizar() });
+
+  // El administrador lo puede corregir, pero no dejarlo vacío
+  const corregir = (numero) => api("POST", `/api/servicios/${id}/corregir`, { token: tokens.admin, body: { numero_vehiculo: numero, motivo: "Número del bus" } });
+  assert.strictEqual((await corregir("")).status, 422);
+  assert.strictEqual((await corregir(null)).status, 422);
+  const r = await corregir("bt 0101");
+  assert.strictEqual(r.status, 200, JSON.stringify(r.datos));
+  assert.strictEqual((await ctx.verAdmin(id)).servicio.numero_vehiculo, "BT 0101");
+});
+
 test("finalizar: calcula tarifa general + concepto en el backend", async () => {
   const r = await api("POST", `/api/servicios/${ids.servicio1}/finalizar`, {
     token: tokens.op1,

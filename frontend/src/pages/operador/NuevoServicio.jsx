@@ -94,6 +94,9 @@ function validarPaso(paso, form, { fechaMinima, catalogos }) {
       e.tipo_vehiculo_otro = "Escriba qué tipo de vehículo es";
     const placa = form.placa_vehiculo.replace(/[\s-]/g, "");
     if (!/^[A-Za-z0-9]{3,10}$/.test(placa)) e.placa_vehiculo = "Placa inválida (solo letras y números)";
+    const numero = form.numero_vehiculo.trim();
+    if (!numero) e.numero_vehiculo = "El número del vehículo es obligatorio";
+    else if (!/^[A-Za-z0-9ÑñÁÉÍÓÚáéíóú .\-/]+$/.test(numero)) e.numero_vehiculo = "Solo letras, números, espacios, guiones o puntos";
   }
   if (paso === 2) {
     if (!form.fecha_servicio) e.fecha_servicio = "La fecha es obligatoria";
@@ -123,7 +126,7 @@ function armarPayload(form) {
     tipo_vehiculo_otro: form.tipo_vehiculo_otro.trim() || null, // el servidor lo ignora si no es "Otro"
     tipo_servicio_id: form.tipo_servicio_id,
     placa_vehiculo: form.placa_vehiculo,
-    numero_vehiculo: form.numero_vehiculo.trim() || null,
+    numero_vehiculo: form.numero_vehiculo.trim().toUpperCase(),
     fecha_servicio: form.fecha_servicio,
     hora_solicitud: deInputFechaHora(form.hora_solicitud),
     inicio_servicio: deInputFechaHora(form.inicio_servicio),

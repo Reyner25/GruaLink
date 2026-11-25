@@ -70,6 +70,7 @@ ctx.datosServicio = (extra = {}) => ({
   tipo_vehiculo_id: ctx.ids.articulado,
   tipo_servicio_id: ctx.ids.remolque,
   placa_vehiculo: "wcs 473",
+  numero_vehiculo: "13033",
   fecha_servicio: ctx.ids.hoy,
   hora_solicitud: ctx.haceMinutos(90),
   inicio_servicio: ctx.haceMinutos(60),

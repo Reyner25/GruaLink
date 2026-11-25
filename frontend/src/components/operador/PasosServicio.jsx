@@ -180,13 +180,14 @@ export function PasoVehiculo({ form, cambiar, errores, catalogos }) {
         slotProps={{ htmlInput: { maxLength: 10, autoCapitalize: "characters", style: { textTransform: "uppercase" } } }}
       />
       <TextField
-        label="Número del vehículo (opcional)"
-        placeholder="Ej: 13033"
+        label="Número del vehículo *"
+        placeholder="Ej: 13033 o Z-1045"
         value={form.numero_vehiculo}
-        onChange={(e) => cambiar("numero_vehiculo", e.target.value)}
+        // Letras y números (teclado normal del celular), en mayúsculas como lo guarda el servidor
+        onChange={(e) => cambiar("numero_vehiculo", e.target.value.toUpperCase())}
         error={Boolean(errores.numero_vehiculo)}
         helperText={errores.numero_vehiculo}
-        slotProps={{ htmlInput: { maxLength: 20, inputMode: "numeric" } }}
+        slotProps={{ htmlInput: { maxLength: 20, autoCapitalize: "characters", autoComplete: "off", style: { textTransform: "uppercase" } } }}
       />
       <TextField
         label="Observaciones del vehículo (opcional)"

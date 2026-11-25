@@ -53,7 +53,7 @@ async function crear({ operadorId, datos }) {
       tipo_vehiculo_otro: vehiculoOtro,
       tipo_servicio_id: tipoServicio.id,
       placa_vehiculo: datos.placa_vehiculo,
-      numero_vehiculo: datos.numero_vehiculo ?? null,
+      numero_vehiculo: datos.numero_vehiculo, // obligatorio (lo exige el validador)
       fecha_servicio: datos.fecha_servicio,
       hora_solicitud: datos.hora_solicitud ?? null,
       inicio_servicio: datos.inicio_servicio ?? null,

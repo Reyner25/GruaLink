@@ -25,6 +25,30 @@ const textoOpcional = (campo, max) =>
 const fechaHoraOpcional = (campo, mensaje) =>
   body(campo).optional({ values: "null" }).isISO8601({ strict: true }).withMessage(mensaje);
 
+/**
+ * Número del vehículo (el número interno del bus, ej. "13033" o "Z-1045"):
+ * OBLIGATORIO. Letras, números, espacios, guiones, puntos y "/"; se guarda en
+ * mayúsculas. "opcional" se usa en la corrección: si viene, no puede quedar vacío.
+ */
+const numeroVehiculo = ({ opcional = false } = {}) => {
+  let regla = body("numero_vehiculo");
+  if (opcional) regla = regla.optional({ values: "undefined" });
+  return regla
+    .isString()
+    .withMessage("El número del vehículo es obligatorio")
+    .bail()
+    .trim()
+    .toUpperCase()
+    .notEmpty()
+    .withMessage("El número del vehículo es obligatorio")
+    .bail()
+    .isLength({ max: 20 })
+    .withMessage("Máximo 20 caracteres")
+    .bail()
+    .matches(/^[A-Z0-9ÑÁÉÍÓÚ .\-/]+$/)
+    .withMessage("Solo letras, números, espacios, guiones o puntos");
+};
+
 
 const validarCrearServicio = [
   id("cliente_id", "Seleccione un cliente"),
@@ -37,7 +61,7 @@ const validarCrearServicio = [
     .customSanitizer((v) => v.replace(/[\s-]/g, "")) // "ABC 123" y "ABC-123" → "ABC123"
     .matches(/^[A-Z0-9]{3,10}$/)
     .withMessage("Placa inválida (solo letras y números, 3 a 10)"),
-  textoOpcional("numero_vehiculo", 20),
+  numeroVehiculo(),
   body("fecha_servicio").isISO8601({ strict: true }).withMessage("Fecha del servicio inválida"),
   fechaHoraOpcional("hora_solicitud", "Hora de solicitud inválida"),
   fechaHoraOpcional("inicio_servicio", "Hora de inicio inválida"),
@@ -115,7 +139,8 @@ const validarCorregir = [
     .custom((v) => v === null || (typeof v === "number" && v >= 0 && v <= 999999999))
     .withMessage("Tarifa manual inválida (valor en pesos o vacío para automática)"),
   opcional("recargo_nocturno").isIn(["auto", "si", "no"]).withMessage("Recargo nocturno: auto, si o no"),
-  ...[["tipo_vehiculo_otro", 60], ["numero_vehiculo", 20], ["origen", 255], ["destino", 255], ["recibe_nombre", 120], ["recibe_documento", 30],
+  numeroVehiculo({ opcional: true }),
+  ...[["tipo_vehiculo_otro", 60], ["origen", 255], ["destino", 255], ["recibe_nombre", 120], ["recibe_documento", 30],
     ["observaciones", 2000], ["observaciones_entrega", 2000]].map(([c, max]) =>
     body(c)
       .optional({ values: "undefined" })

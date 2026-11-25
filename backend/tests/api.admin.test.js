@@ -256,6 +256,7 @@ test("servicio del cliente nuevo usa SU tarifa y SU precio de concepto", async (
       tipo_vehiculo_id: ids.articulado,
       tipo_servicio_id: ids.remolque,
       placa_vehiculo: "ABC123",
+      numero_vehiculo: "13033",
       fecha_servicio: ids.hoy,
       hora_solicitud: haceMinutos(120),
       inicio_servicio: haceMinutos(90),
@@ -353,6 +354,7 @@ test("rescate (a convenir): aprobar exige indicar el valor", async () => {
       tipo_servicio_id: ids.rescate,
       es_rescate: true,
       placa_vehiculo: "XYZ987",
+      numero_vehiculo: "Z-1045",
       fecha_servicio: ids.hoy,
       inicio_servicio: haceMinutos(60),
     },
@@ -372,7 +374,7 @@ test("rescate (a convenir): aprobar exige indicar el valor", async () => {
 test("anular exige motivo", async () => {
   const s = await api("POST", "/api/servicios", {
     token: tk.op,
-    body: { cliente_id: ids.cliente, tipo_vehiculo_id: ids.articulado, tipo_servicio_id: ids.remolque, placa_vehiculo: "AAA111", fecha_servicio: ids.hoy },
+    body: { cliente_id: ids.cliente, tipo_vehiculo_id: ids.articulado, tipo_servicio_id: ids.remolque, placa_vehiculo: "AAA111", numero_vehiculo: "7001", fecha_servicio: ids.hoy },
   });
   const sin = await api("PATCH", `/api/servicios/${s.datos.servicio.id}/estado`, { token: tk.admin, body: { estado: "anulado" } });
   assert.strictEqual(sin.datos.codigo, "MOTIVO_OBLIGATORIO");
