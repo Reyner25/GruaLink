@@ -129,8 +129,11 @@ export default function Servicios() {
                     </TableCell>
                     <TableCell>{s.tipo_servicio}</TableCell>
                     <TableCell>{s.grua_numero}</TableCell>
-                    <TableCell align="right">{s.valor_calculado === null ? "A convenir" : formatoMoneda(s.valor_calculado)}</TableCell>
-                    <TableCell align="right">{formatoMoneda(s.valor_aprobado)}</TableCell>
+                    {/* Un anulado no se cobra: no se muestra valor */}
+                    <TableCell align="right" sx={s.estado === "anulado" ? { color: "text.disabled" } : undefined}>
+                      {s.estado === "anulado" ? "No se cobra" : s.valor_calculado === null ? "A convenir" : formatoMoneda(s.valor_calculado)}
+                    </TableCell>
+                    <TableCell align="right">{s.estado === "anulado" ? "—" : formatoMoneda(s.valor_aprobado)}</TableCell>
                     <TableCell>
                       <EstadoServicio estado={s.estado} />
                     </TableCell>

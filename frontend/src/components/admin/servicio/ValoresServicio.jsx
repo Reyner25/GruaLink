@@ -3,7 +3,7 @@
  * explicación de cómo se obtuvo), trabajos adicionales, valor calculado y
  * valor aprobado.
  */
-import { Table, TableBody, TableCell, TableHead, TableRow, Typography } from "@mui/material";
+import { Alert, Table, TableBody, TableCell, TableHead, TableRow, Typography } from "@mui/material";
 import { cantidadConUnidad, formatoFechaHora, formatoMoneda, formatoNumero } from "../../../utils/formato";
 import { Panel } from "../Comunes";
 
@@ -29,6 +29,21 @@ function Nota({ children, color = "text.secondary" }) {
 }
 
 export default function ValoresServicio({ servicio: s, conceptos }) {
+  // Un servicio anulado no se cobra: no se muestran valores (los que tenía quedan en la bitácora)
+  if (s.estado === "anulado") {
+    return (
+      <Panel titulo="Valores">
+        <Alert severity="info">
+          Servicio <b>anulado</b>: no se cobra al cliente, no se paga al operador y no suma en los reportes.
+        </Alert>
+        {conceptos.length > 0 && (
+          <Typography variant="body2" color="text.secondary" sx={{ mt: 1.5 }}>
+            Trabajos registrados: {conceptos.map((c) => `${c.nombre} (${cantidadConUnidad(c.cantidad, c.unidad_cobro)})`).join(", ")}
+          </Typography>
+        )}
+      </Panel>
+    );
+  }
   const aConvenir = s.valor_tarifa_basica === null;
   return (
     <Panel titulo="Valores">

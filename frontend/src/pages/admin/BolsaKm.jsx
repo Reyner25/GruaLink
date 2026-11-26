@@ -165,8 +165,10 @@ export default function BolsaKm() {
                           )}
                         </TableCell>
                         <TableCell align="right">{formatoNumero(s.km_bolsa)}</TableCell>
-                        <TableCell align="right">{s.valor_calculado === null ? "A convenir" : formatoMoneda(s.valor_calculado)}</TableCell>
-                        <TableCell align="right">{formatoMoneda(s.valor_aprobado)}</TableCell>
+                        <TableCell align="right">
+                          {s.estado === "anulado" ? "No se cobra" : s.valor_calculado === null ? "A convenir" : formatoMoneda(s.valor_calculado)}
+                        </TableCell>
+                        <TableCell align="right">{s.estado === "anulado" ? "—" : formatoMoneda(s.valor_aprobado)}</TableCell>
                         <TableCell>
                           <EstadoServicio estado={s.estado} />
                         </TableCell>

@@ -192,9 +192,12 @@ function marcaAnulado(doc) {
   doc.opacity(1);
 }
 
-function orden(doc, s, conceptos, mostrarValores) {
+function orden(doc, s, conceptos, mostrarValoresSiCorresponde) {
   doc.addPage();
-  if (s.estado === "anulado") marcaAnulado(doc);
+  const anulado = s.estado === "anulado";
+  if (anulado) marcaAnulado(doc);
+  // Un servicio anulado no se cobra: su orden sale sin dinero
+  const mostrarValores = mostrarValoresSiCorresponde && !anulado;
 
   let y = encabezado(doc, s);
 
@@ -226,6 +229,10 @@ function orden(doc, s, conceptos, mostrarValores) {
   if (mostrarValores) {
     y = seccion(doc, "Valores", y);
     y = valores(doc, y, s);
+  } else if (anulado && mostrarValoresSiCorresponde) {
+    y = seccion(doc, "Valores", y);
+    doc.fillColor(TEXTO).font("Helvetica-Bold").fontSize(9).text("Servicio anulado: no se cobra al cliente.", M, y);
+    y += 18;
   }
 
   y = seccion(doc, "Entrega", y);
