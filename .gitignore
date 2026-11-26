@@ -20,3 +20,6 @@ Thumbs.db
 
 # Salida de herramientas de análisis del código (no es parte del proyecto)
 graphify-out/
+
+# Entregables con datos internos (IP de la oficina, correos): no van al repositorio público
+docs/entregables/
